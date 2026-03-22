@@ -112,8 +112,9 @@ class ClinicalEngine {
             const pattBoost = patternBoostMap.get(disease) || 1.0;
             const indiaBoost = this.INDIA_PRIORITY[disease] || 1.0;
 
-            // Scoring Logic Parity with Python
-            const score = (0.4 * sim) + (0.2 * prev) + (0.15 * matchScore) + (0.15 * (pattBoost - 1.0));
+            // Clinical Dominance Scoring (Production Final Tuning)
+            // matchScore is primary, then prevalence/boosts, sim is only a tiebreaker
+            const score = (0.15 * sim) + (0.1 * prev) + (0.6 * matchScore) + (0.15 * (pattBoost - 1.0));
             const finalScore = score * indiaBoost;
 
             if (!potentialCandidates.has(disease) || finalScore > potentialCandidates.get(disease).score) {
@@ -131,12 +132,12 @@ class ClinicalEngine {
             
             (ayur.doshas || rec.doshas || []).forEach(d => doshas.set(d, (doshas.get(d) || 0) + 1));
             
-            // Map every possible dataset locational key
+            // Map every possible dataset locational key (Exhaustive Scan)
             const map = {
-                herbs: ayur.herbal_remedies || ayur.herbs || rec.herbs || rec.herbal_remedies || [],
-                home_remedies: ayur.home_remedies || treatment.home_remedies || ayur.treatment?.home_remedies || rec.home_remedies || [],
-                yoga: ayur.yoga || treatment.yoga || ayur.treatment?.yoga || rec.yoga || rec.yoga_poses || [],
-                lifestyle: ayur.lifestyle || treatment.lifestyle || ayur.treatment?.lifestyle || rec.lifestyle || rec.lifestyle_advice || []
+                herbs: ayur.herbal_remedies || ayur.herbs || rec.herbal_remedies || rec.herbs || ayur.herbs_list || [],
+                home_remedies: ayur.home_remedies || treatment.home_remedies || rec.home_remedies || rec.remedies || ayur.home_remedy || rec.home_remedy || [],
+                yoga: ayur.yoga || treatment.yoga || ayur.yoga_poses || rec.yoga || rec.yoga_poses || rec.yoga_list || [],
+                lifestyle: ayur.lifestyle || treatment.lifestyle || rec.lifestyle || ayur.lifestyle_advice || rec.diet_lifestyle || rec.lifestyle_advice || []
             };
 
             for (let [key, items] of Object.entries(map)) {
