@@ -1,0 +1,20 @@
+# Large Files
+data/ayurveda_ai.db
+data/ayurveda.index
+embeddings/
+*.db
+*.index
+*.npy
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
