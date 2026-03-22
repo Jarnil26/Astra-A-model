@@ -108,13 +108,14 @@ class ClinicalEngine {
             const recSymptoms = rec.symptoms || [];
             const matchScore = this.getMatchScore(recSymptoms, inputSymptoms);
             
-            const prev = this.prevalence[disease] || 0.05;
-            const pattBoost = patternBoostMap.get(disease) || 1.0;
-            const indiaBoost = this.INDIA_PRIORITY[disease] || 1.0;
+            // Clinical Dominance Scoring (Aggressive Production Final)
+            // Clinical overlap (matchScore) is now 80% of the decision logic.
+            const lookup = disease.toLowerCase();
+            const prevalenceVal = this.prevalence[disease] || (this.prevalence[lookup] || 0.05);
+            const indiaBoost = this.INDIA_PRIORITY[lookup] || 1.0;
+            const pattBoost = patternBoostMap.get(disease) || (patternBoostMap.get(lookup) || 1.0);
 
-            // Clinical Dominance Scoring (Production Final Tuning)
-            // matchScore is primary, then prevalence/boosts, sim is only a tiebreaker
-            const score = (0.15 * sim) + (0.1 * prev) + (0.6 * matchScore) + (0.15 * (pattBoost - 1.0));
+            const score = (0.05 * sim) + (0.05 * prevalenceVal) + (0.8 * matchScore) + (0.1 * (pattBoost - 1.0));
             const finalScore = score * indiaBoost;
 
             if (!potentialCandidates.has(disease) || finalScore > potentialCandidates.get(disease).score) {
