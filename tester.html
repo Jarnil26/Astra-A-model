@@ -358,7 +358,8 @@
                 const data = await resp.json();
                 displayResults(data);
             } catch (e) {
-                alert("Diagnosis failed. Make sure the engine is initialized on Render.");
+                console.error("DIAGNOSIS_FATAL:", e);
+                alert("The engine is still preparing on Render. Please wait 10 seconds and try again.");
             } finally {
                 document.getElementById('loader').style.display = 'none';
             }
