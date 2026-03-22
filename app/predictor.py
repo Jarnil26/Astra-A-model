@@ -115,8 +115,16 @@ class AdvancedPredictor:
         for res in retrieval_results:
             sim = res["similarity"]
             rec = res["record"]
-            rec_symptoms = rec.get("input", {}).get("symptoms", [])
+            
+            # Compatible Schema Detection
+            # New format uses direct keys; Legacy used nested 'input'/'prediction'
+            rec_symptoms = rec.get("symptoms") or rec.get("input", {}).get("symptoms", [])
             probs = rec.get("prediction", {}).get("disease_probabilities", {})
+            
+            # If flat format, create a pseudo-probability for the primary disease
+            target_disease = rec.get("disease")
+            if target_disease and not probs:
+                probs = {target_disease: 1.0}
             
             match_score = self.get_match_score(rec_symptoms, input_symptoms)
             
@@ -125,21 +133,36 @@ class AdvancedPredictor:
                 
                 # Formula: 0.4*sim + 0.2*prev + 0.15*match + 0.15*patt_boost + 0.1*rule_boost
                 patt_boost = pattern_booster.get(disease, 1.0)
-                rule_boost = 1.0 # Standard fallback
                 
-                final_s = (0.4 * sim) + (0.2 * prev) + (0.15 * match_score) + (0.15 * (patt_boost - 1.0))
+                # Normalize patt_boost impact (it's 1.25 or 1.0)
+                pb_impact = (patt_boost - 1.0) * 1.5 
+                
+                final_s = (0.4 * sim) + (0.2 * prev) + (0.15 * match_score) + (0.15 * pb_impact)
                 
                 potential_candidates.append({
                     "disease": disease,
-                    "score": final_s,
+                    "score": final_s * p_raw, # Scale by record confidence
                     "match_score": match_score,
                     "prevalence": prev
                 })
 
-            # Metadata aggregation
-            dosha_counts.update(rec.get("knowledge", {}).get("dosha_imbalance", []))
+            # Metadata aggregation (support both schema versions)
+            ayur = rec.get("ayurveda", {})
+            dosha_list = ayur.get("doshas") or rec.get("knowledge", {}).get("dosha_imbalance", [])
+            dosha_counts.update(dosha_list)
+            
             for rtype in ["herbs", "home_remedies", "yoga", "lifestyle"]:
-                items = rec.get("remedies", {}).get(rtype, [])
+                # New format: remedies[rtype] or ayurveda[rtype]
+                # Note: 'home_remedies' in dataset is 'herbal_remedies'
+                items = []
+                if rtype == "herbal_remedies" or rtype == "home_remedies":
+                    items = ayur.get("herbal_remedies") or rec.get("remedies", {}).get("home_remedies", [])
+                else:
+                    items = ayur.get(rtype) or rec.get("remedies", {}).get(rtype, [])
+                
+                if not items and rtype == "yoga": # Dataset uses treatment.yoga
+                    items = rec.get("treatment", {}).get("yoga", [])
+                    
                 remedy_pool[rtype].update([i for i in items])
 
         # --- FINAL STEP: CLINICAL VALIDATION ENGINE ---
