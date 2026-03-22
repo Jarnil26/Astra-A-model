@@ -19,11 +19,10 @@ class PredictionRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    print("🚀 Initializing Astra A0 Clinical Engine...")
-    # Attempt to load, but don't fail if missing
-    DBLoader.get_retriever()
-    DBLoader.get_predictor()
-    print("✅ Startup Sequence Complete")
+    print("-" * 50)
+    print("🚀 Astra A0 API: Starting Listener...")
+    print("Engine will load lazily on first request to prevent port timeout.")
+    print("-" * 50)
 
 @app.get("/health")
 async def health():
