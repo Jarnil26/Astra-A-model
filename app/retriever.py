@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+import numpy as np
 
 class Retriever:
     def __init__(self, index_path="data/ayurveda.index", db_path="data/ayurveda_ai.db", model_name="BAAI/bge-small-en-v1.5"):
