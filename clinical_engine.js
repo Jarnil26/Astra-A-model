@@ -123,7 +123,7 @@ class ClinicalEngine {
                     disease, 
                     score: finalScore, 
                     matchScore, 
-                    prevalence: prev 
+                    prevalence: prevalenceVal 
                 });
             }
 
