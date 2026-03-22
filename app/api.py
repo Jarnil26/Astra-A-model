@@ -40,13 +40,12 @@ async def health():
     uptime = time.time() - start_time
     avg_latency = stats["total_latency_ms"] / stats["total_predictions"] if stats["total_predictions"] > 0 else 0
     
-    # Fast check of the ready flag
-    engine_ready = DBLoader.is_ready()
+    # Check engine status
+    status = DBLoader.get_status()
     
     return {
-        "status": "alive" if engine_ready else "initializing" if DBLoader._loading else "degraded",
-        "engine_ready": engine_ready,
-        "loading": DBLoader._loading,
+        "status": "ready" if DBLoader.is_ready() else "initializing" if status["is_loading"] else "degraded",
+        "engine": status,
         "uptime_seconds": round(uptime, 2),
         "total_predictions": stats["total_predictions"],
         "avg_response_time_ms": round(avg_latency, 2),
@@ -59,9 +58,12 @@ async def predict(request: PredictionRequest):
     
     # Fast check
     if not DBLoader.is_ready():
+        status = DBLoader.get_status()
         return {
             "status": "error",
-            "message": "Engine initializing. Please wait 1-2 minutes for model and index loading on Render."
+            "message": "Engine not ready.",
+            "diagnostics": status,
+            "instruction": "If DB or Index are False, you must upload or build them. If is_loading is True, wait 2 mins."
         }
 
     retriever = DBLoader.get_retriever()
