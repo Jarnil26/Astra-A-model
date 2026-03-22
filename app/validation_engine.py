@@ -70,25 +70,30 @@ class ClinicalValidator:
             pattern_locked_results = candidates
 
         # --- STEP 2 & 3: Elimination & Consistency ---
+        print(f"🔬 Validating {len(pattern_locked_results)} candidates for {symptoms}")
         for cand in pattern_locked_results:
             d_name = cand["disease"].lower()
             match_score = cand.get("match_score", 0)
             
-            # Match Match Score Requirement (Step 3)
-            if match_score < 0.4: continue
+            # Match Match Score Requirement (Relaxed for small lists)
+            threshold = 0.4 if len(symptoms) > 2 else 0.1
+            if match_score < threshold:
+                continue
             
             # Hard Elimination Filter (Step 2)
             is_irrelevant = any(sys_name in d_name for sys_name in self.IRRELEVANT_SYSTEMS)
-            if is_irrelevant and match_score < 0.9: # 90% threshold for rare/genetic bypass
+            if is_irrelevant and match_score < 0.9: 
                 continue
             
-            # Boosting (Step 3)
+            # Boosting
             if match_score >= 0.9:
                 cand["score"] *= 1.5
             elif match_score >= 0.7:
                 cand["score"] *= 1.25
                 
             validated.append(cand)
+        
+        print(f"🔬 Passed Validation: {len(validated)}")
 
         # --- STEP 4: Critical Enforcement (Mandatory Injection) ---
         for pattern in active_patterns:
