@@ -38,21 +38,45 @@ class DBLoader:
     @classmethod
     def _perform_load(cls):
         try:
-            import subprocess
-            import sys
-            
-            # Check if we need a self-healing bootstrap
+            # Check if we need to build the database from source
             db_missing = not os.path.exists(Config.DB_PATH)
             index_missing = not os.path.exists(Config.INDEX_PATH)
             
             if db_missing or index_missing:
-                print("🛠️ Clinical data missing. Triggering Self-Healing Bootstrap...")
-                # Run build_astra.py as a subprocess
+                print("🛠️ Clinical data missing. Running Direct Bootstrap (Pass 1-4)...")
                 try:
-                    subprocess.run([sys.executable, "build_astra.py"], check=True)
-                    print("✅ Bootstrap Complete")
+                    # PASS 1: Stream JSON to SQLite
+                    from data_streamer import DataStreamer
+                    dataset = os.path.join(Config.DATA_DIR, "AyurGenixAI_Dataset.json")
+                    if os.path.exists(dataset):
+                        streamer = DataStreamer(dataset, Config.DB_PATH)
+                        streamer.stream_and_index()
+                        streamer.close()
+                    else:
+                        print(f"❌ Source dataset missing at {dataset}")
+                    
+                    # PASS 2: Generate Embedding Chunks
+                    from embedding_builder import EmbeddingBuilder
+                    eb = EmbeddingBuilder(Config.DB_PATH, Config.MODEL_NAME)
+                    eb.build_embeddings(output_dir=os.path.join(Config.DATA_DIR, "embeddings"))
+                    
+                    # PASS 3: Build FAISS Index
+                    from faiss_index_builder import FAISSIndexBuilder
+                    fib = FAISSIndexBuilder(
+                        embedding_dir=os.path.join(Config.DATA_DIR, "embeddings"),
+                        index_path=Config.INDEX_PATH
+                    )
+                    fib.build_index()
+                    
+                    # PASS 4: Prevalence Matrix
+                    from prevalence_builder import PrevalenceManager
+                    pm = PrevalenceManager(Config.DB_PATH, Config.PREVALENCE_PATH)
+                    pm.build_matrix()
+                    
+                    print("✅ Direct Bootstrap Complete")
+                    
                 except Exception as build_err:
-                    print(f"❌ Bootstrap failed: {build_err}")
+                    print(f"❌ Direct Bootstrap failed: {build_err}")
             
             from app.retriever import Retriever
             from app.predictor import AdvancedPredictor
