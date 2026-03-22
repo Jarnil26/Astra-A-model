@@ -10,7 +10,8 @@ class Config:
     PREVALENCE_PATH = os.path.join(DATA_DIR, "disease_prevalence.json")
     
     # Model settings
-    MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
+    # Switching to 'all-MiniLM-L6-v2' (~80MB) for Render Free Tier (512MB limit)
+    MODEL_NAME = "all-MiniLM-L6-v2"
     FAISS_NPROBE = 20
     RETRIEVAL_K = 30
     
