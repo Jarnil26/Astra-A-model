@@ -113,6 +113,7 @@ class Retriever:
         if self.index is None:
             return self._keyword_retrieve(symptoms, k)
 
+        query_vec = self.get_query_embedding(symptoms).reshape(1, -1)
         similarities, indices = self.index.search(query_vec, k)
         
         print(f"🔍 FAISS Top Scores: {similarities[0][:5]}")
