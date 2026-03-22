@@ -125,12 +125,25 @@ class ClinicalEngine {
                 });
             }
 
-            // Remedies & Doshas
+            // Remedies & Doshas (EXHAUSTIVE EXTRACTION)
             const ayur = rec.ayurveda || {};
             (ayur.doshas || []).forEach(d => doshas.set(d, (doshas.get(d) || 0) + 1));
             
-            const rems = ayur.herbal_remedies || ayur.herbs || [];
-            rems.forEach(r => remedies.herbs.set(r, (remedies.herbs.get(r) || 0) + 1));
+            // Map dataset keys to engine keys
+            const map = {
+                herbs: ayur.herbal_remedies || ayur.herbs || [],
+                home_remedies: ayur.home_remedies || ayur.treatment?.home_remedies || [],
+                yoga: ayur.yoga || ayur.treatment?.yoga || [],
+                lifestyle: ayur.lifestyle || ayur.treatment?.lifestyle || []
+            };
+
+            for (let [key, items] of Object.entries(map)) {
+                if (Array.isArray(items)) {
+                    items.forEach(item => {
+                        remedies[key].set(item, (remedies[key].get(item) || 0) + 1);
+                    });
+                }
+            }
         }
 
         const sortedCandidates = Array.from(potentialCandidates.values())
