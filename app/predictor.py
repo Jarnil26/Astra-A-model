@@ -166,7 +166,6 @@ class AdvancedPredictor:
                     
                 remedy_pool[rtype].update([i for i in items])
 
-        )
         
         print(f"🩺 Final Candidates Found: {len(potential_candidates)}")
         if potential_candidates:
