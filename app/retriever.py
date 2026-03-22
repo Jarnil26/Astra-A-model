@@ -14,7 +14,9 @@ class Retriever:
             print(f"📦 Loading AI Model: {model_name}...")
             # FastEmbed automatic local caching
             self.model = TextEmbedding(model_name=model_name)
-            self.dim = self.model.embedding_dimension
+            
+            # Hardcoded 384 for bge-small-en-v1.5/all-minilm to avoid attribute errors
+            self.dim = 384 
         except Exception as e:
             print(f"❌ Model load failed: {e}")
             self.model = None
@@ -24,12 +26,10 @@ class Retriever:
         if os.path.exists(index_path):
             try:
                 print(f"📦 Loading FAISS Index: {index_path}...")
-                # We try standard load first; Render might kill if it exceeds 512MB
                 self.index = faiss.read_index(index_path)
-                self.index.nprobe = 20
                 print("✅ FAISS Index Loaded Into RAM")
             except Exception as e:
-                print(f"⚠️ FAISS Load Failed (likely OOM): {e}. Falling back to Keyword mode.")
+                print(f"⚠️ FAISS Load Failed: {e}. Falling back to Keyword mode.")
                 self.index = None
 
         self.db_path = db_path
