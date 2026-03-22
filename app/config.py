@@ -11,8 +11,8 @@ class Config:
     
     # Model settings
     # Switching to 'all-MiniLM-L6-v2' (~80MB)    # Model Configuration (Memory Optimized for 512MB RAM)
-    # Using 'BAAI/bge-small-en-v1.5' via FastEmbed (ONNX)
-    MODEL_NAME = "BAAI/bge-small-en-v1.5"
+    # Using 'all-MiniLM-L6-v2' via FastEmbed (MUST MATCH INDEX)
+    MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
     FAISS_NPROBE = 20
     RETRIEVAL_K = 30
     
