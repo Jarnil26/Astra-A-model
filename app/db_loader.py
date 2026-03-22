@@ -38,6 +38,22 @@ class DBLoader:
     @classmethod
     def _perform_load(cls):
         try:
+            import subprocess
+            import sys
+            
+            # Check if we need a self-healing bootstrap
+            db_missing = not os.path.exists(Config.DB_PATH)
+            index_missing = not os.path.exists(Config.INDEX_PATH)
+            
+            if db_missing or index_missing:
+                print("🛠️ Clinical data missing. Triggering Self-Healing Bootstrap...")
+                # Run build_astra.py as a subprocess
+                try:
+                    subprocess.run([sys.executable, "build_astra.py"], check=True)
+                    print("✅ Bootstrap Complete")
+                except Exception as build_err:
+                    print(f"❌ Bootstrap failed: {build_err}")
+            
             from app.retriever import Retriever
             from app.predictor import AdvancedPredictor
             
@@ -55,7 +71,7 @@ class DBLoader:
                 db_path=Config.DB_PATH,
                 prevalence_path=Config.PREVALENCE_PATH
             )
-            print("✅ Engine Fully Loaded")
+            print("✅ Engine Fully Loaded & Ready")
         except Exception as e:
             print(f"❌ Background Loader Error: {e}")
         finally:
