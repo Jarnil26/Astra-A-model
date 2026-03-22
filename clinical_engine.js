@@ -100,8 +100,12 @@ class ClinicalEngine {
         // 2. Score
         for (let res of retrievalResults) {
             const { record: rec, similarity: sim } = res;
+            const disease = (rec.disease || "").trim();
+            
+            // SKIP EMPTY OR INVALID DISEASES
+            if (!disease || disease.length < 2) continue;
+            
             const recSymptoms = rec.symptoms || [];
-            const disease = rec.disease;
             const matchScore = this.getMatchScore(recSymptoms, inputSymptoms);
             
             const prev = this.prevalence[disease] || 0.05;
@@ -181,8 +185,13 @@ class ClinicalEngine {
         for (let type in remedyPool) {
             final[type] = Array.from(remedyPool[type].entries())
                 .sort((a, b) => b[1] - a[1])
-                .slice(0, 5)
-                .map(x => x[0]);
+                .map(x => x[0].toLowerCase().trim())
+                .filter(item => {
+                    // FILTER OUT GENERIC PLACEHOLDERS
+                    const generic = ["none", "none specific", "n/a", "no", "nil", "void", "none."];
+                    return item.length > 2 && !generic.includes(item);
+                })
+                .slice(0, 5);
         }
         return final;
     }
