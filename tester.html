@@ -326,11 +326,12 @@
                 const dot = document.getElementById('healthDot');
                 const text = document.getElementById('healthText');
 
-                if (data.status === 'alive') {
+                if (data.status === 'ready') {
                     dot.className = 'dot online';
                     text.innerText = 'SYSTEM OPTIMAL';
-                } else if (data.status === 'degraded') {
+                } else if (data.status === 'initializing' || data.status === 'degraded') {
                     dot.style.background = '#ffcc00';
+                    text.className = 'dot'; // remove online class
                     text.innerText = 'INITIALIZING ENGINE...';
                 }
             } catch (e) {
