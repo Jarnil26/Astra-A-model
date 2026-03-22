@@ -13,8 +13,17 @@ class ClinicalEngine {
             "Common Cold": 1.1, "Influenza": 1.2
         };
 
+        // symptom expansion (Colloquial -> Clinical)
+        this.SYMPTOM_EXPANSION = {
+            "cold": ["coryza", "runny nose", "sneezing", "congestion"],
+            "cough": ["bronchitis", "phlegm", "dry cough"],
+            "fever": ["pyrexia", "high temperature", "chills"],
+            "body pain": ["myalgia", "joint pain", "malaise"]
+        };
+
         this.PATTERNS = [
-            { name: "Infectious Fever", symptoms: ["fever", "headache", "nausea"], diseases: ["Dengue", "Malaria", "Viral Fever", "Typhoid"], boost: 1.6 },
+            { name: "Infectious Fever", symptoms: ["fever", "headache", "nausea", "chills"], diseases: ["Dengue", "Malaria", "Viral Fever", "Typhoid", "Influenza"], boost: 2.0 },
+            { name: "Common Cold", symptoms: ["cold", "sneezing", "coryza", "runny nose"], diseases: ["Common Cold", "Influenza", "Allergic Rhinitis"], boost: 2.5 },
             { name: "Respiratory Distress", symptoms: ["cough", "shortness of breath", "fatigue"], diseases: ["COVID-19", "Asthma", "Pneumonia", "Bronchitis"], boost: 1.8 }
         ];
     }
@@ -32,10 +41,13 @@ class ClinicalEngine {
     }
 
     search(queryEmbedding, k = 10) {
+        if (!queryEmbedding || queryEmbedding.every(v => v === 0)) return [];
         const results = [];
         for (let i = 0; i < this.brain.count; i++) {
-            const sim = this.cosineSimilarity(queryEmbedding, this.brain.embeddings[i]);
-            results.push({ record: this.brain.records[i], similarity: sim });
+            const emb = this.brain.embeddings[i];
+            if (!emb) continue;
+            const sim = this.cosineSimilarity(queryEmbedding, emb);
+            results.push({ record: this.brain.records[i], similarity: isNaN(sim) ? 0 : sim });
         }
         results.sort((a, b) => b.similarity - a.similarity);
         return results.slice(0, k);
@@ -43,13 +55,32 @@ class ClinicalEngine {
 
     getMatchScore(recSymptoms, inputSymptoms) {
         if (!recSymptoms || !inputSymptoms) return 0;
-        const inputSet = new Set(inputSymptoms.map(s => s.toLowerCase().trim()));
+        
+        // Expand input symptoms
+        let expanded = [...inputSymptoms];
+        inputSymptoms.forEach(s => {
+            const extra = this.SYMPTOM_EXPANSION[s.toLowerCase().trim()] || [];
+            expanded = expanded.concat(extra);
+        });
+
+        const inputSet = new Set(expanded.map(s => s.toLowerCase().trim()));
         const recSet = new Set(recSymptoms.map(s => s.toLowerCase().trim()));
+        
         let matches = 0;
-        for (let s of inputSet) {
-            if (recSet.has(s)) matches++;
+        const targetSet = new Set(inputSymptoms.map(s => s.toLowerCase().trim()));
+        for (let s of targetSet) {
+            // Check direct match
+            if (recSet.has(s)) {
+                matches++;
+                continue;
+            }
+            // Check expanded match
+            const extras = this.SYMPTOM_EXPANSION[s] || [];
+            if (extras.some(ex => recSet.has(ex))) {
+                matches += 0.8; // Partial credit for expanded match
+            }
         }
-        return matches / inputSet.size;
+        return matches / targetSet.size;
     }
 
     aggregate(retrievalResults, inputSymptoms) {
@@ -121,14 +152,26 @@ class ClinicalEngine {
 
     calibrate(candidates) {
         if (candidates.length === 0) return [];
-        const maxScore = candidates[0].score;
+        const maxScore = candidates[0].score || 0.1;
+        
         return candidates.map((c, i) => {
-            let conf = Math.exp((c.score - maxScore) / 0.1);
-            conf = Math.min(Math.max(conf, 0.5), 0.9);
-            if (i === 0) conf = Math.max(conf, 0.82);
+            const currentScore = c.score || 0;
+            // Numerical stability: Clamp score diff
+            let diff = (currentScore - maxScore) / 0.1;
+            if (isNaN(diff)) diff = -10;
+            
+            let conf = Math.exp(diff);
+            
+            // Clamp and bias
+            conf = Math.min(Math.max(conf, 0.4), 0.95);
+            if (i === 0) conf = Math.max(conf, 0.85);
+            
+            // Boost for high clinical matches
+            if (c.matchScore >= 0.8) conf = Math.max(conf, 0.9);
+            
             return {
                 disease: c.disease,
-                confidence: Math.round(conf * 100) / 100
+                confidence: Number(conf.toFixed(2))
             };
         });
     }
