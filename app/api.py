@@ -3,8 +3,18 @@ from pydantic import BaseModel
 import time
 from app.db_loader import DBLoader
 import uvicorn
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Astra A0 Clinical API")
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Global Stats
 start_time = time.time()
