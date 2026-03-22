@@ -368,9 +368,8 @@
                 const data = await resp.json();
                 displayResults(data);
             } catch (e) {
-                console.warn("Retrying fetch...", e);
-                // Attempt one silent retry
-                setTimeout(diagnose, 2000);
+                console.error("DIAGNOSIS_ERROR:", e);
+                alert("The engine is busy or still initializing. Please wait 10 seconds and try again.");
             } finally {
                 document.getElementById('loader').style.display = 'none';
             }

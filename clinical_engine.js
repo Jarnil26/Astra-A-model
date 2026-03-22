@@ -148,22 +148,27 @@ class ClinicalEngine {
                     list = typeof list === 'string' ? list.split(',').map(s => s.trim()) : (list ? [list.toString()] : []);
                 }
                 list.forEach(item => {
-                    const cleanItem = item.toLowerCase().trim();
-                    if (cleanItem.length > 2 && !["none", "n/a", "nil"].includes(cleanItem)) {
-                        remedies[key].set(item, (remedies[key].get(item) || 0) + 1);
+                    let val = item;
+                    if (typeof val === 'object' && val !== null) {
+                        val = val.text || val.advice || val.description || JSON.stringify(val);
+                    }
+                    const cleanItem = String(val).toLowerCase().trim();
+                    if (cleanItem.length > 2 && !["none", "n/a", "nil", "[object object]"].includes(cleanItem)) {
+                        remedies[key].set(String(val), (remedies[key].get(String(val)) || 0) + 1);
                     }
                 });
             }
         }
 
         const sortedCandidates = Array.from(potentialCandidates.values())
-            .filter(c => inputSymptoms.length > 2 ? c.matchScore >= 0.4 : c.matchScore >= 0.1)
+            .filter(c => c.matchScore > 0)
             .sort((a, b) => b.score - a.score);
 
         return {
             predictions: this.calibrate(sortedCandidates.slice(0, 5)),
             dosha: Array.from(doshas.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(x => x[0]),
             remedies: this.getTopRemedies(remedies),
+            active_patterns: activePatterns.map(p => p.name),
             status: sortedCandidates.length > 0 ? "Success" : "More symptoms required."
         };
     }
