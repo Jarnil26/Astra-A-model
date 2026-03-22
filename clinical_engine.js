@@ -26,6 +26,25 @@ class ClinicalEngine {
             { name: "Common Cold", symptoms: ["cold", "sneezing", "coryza", "runny nose"], diseases: ["Common Cold", "Influenza", "Allergic Rhinitis"], boost: 2.5 },
             { name: "Respiratory Distress", symptoms: ["cough", "shortness of breath", "fatigue"], diseases: ["COVID-19", "Asthma", "Pneumonia", "Bronchitis"], boost: 1.8 }
         ];
+
+        // Global Clinical Protocol Fallbacks
+        this.GLOBAL_PROTOCOLS = {
+            "common cold": {
+                home_remedies: ["Ginger Tea", "Honey & Pepper", "Salt water gargle", "Steam inhalation", "Turmeric Milk"],
+                yoga: ["Pranayama (Nadi Shodhana)", "Surya Namaskar (Slow)", "Matsyasana", "Viparita Karani"],
+                lifestyle: ["Avoid cold showers", "Drink warm water only", "Rest in a well-ventilated room", "Light diet (Kanji)"]
+            },
+            "fever": {
+                home_remedies: ["Raisin & Ginger Paste", "Coriander seed water", "Basil (Tulsi) Tea", "Sandalwood paste on forehead"],
+                yoga: ["Shitalii Pranayama", "Bhramari Pranayama", "Shavasana"],
+                lifestyle: ["Complete bed rest", "Wipe body with warm water", "Avoid oily/heavy food", "Keep hydrated"]
+            },
+            "influenza": {
+                home_remedies: ["Ginger & Tulsi decoction", "Garlic infused honey", "Cinnamon tea", "Warm salt water gargle"],
+                yoga: ["Pranayama", "Adho Mukha Svanasana", "Setu Bandhasana"],
+                lifestyle: ["Total isolation and rest", "Hydration with warm herbal teas", "Sattvic diet", "Avoid dairy"]
+            }
+        };
     }
 
     cosineSimilarity(vecA, vecB) {
@@ -163,6 +182,19 @@ class ClinicalEngine {
         const sortedCandidates = Array.from(potentialCandidates.values())
             .filter(c => c.matchScore > 0)
             .sort((a, b) => b.score - a.score);
+
+        // 4. Inject Global Protocol Fallback for Top Prediction
+        if (sortedCandidates.length > 0) {
+            const top = sortedCandidates[0].disease.toLowerCase();
+            const protocol = this.GLOBAL_PROTOCOLS[top];
+            if (protocol) {
+                Object.entries(protocol).forEach(([key, items]) => {
+                    if (remedies[key].size < 2) { // Only inject if DB record is thin
+                        items.forEach(item => remedies[key].set(item, 100)); // High priority
+                    }
+                });
+            }
+        }
 
         return {
             predictions: this.calibrate(sortedCandidates.slice(0, 5)),
