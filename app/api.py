@@ -19,18 +19,23 @@ class PredictionRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    print("🚀 Loading Astra A0 Engine...")
+    print("🚀 Initializing Astra A0 Clinical Engine...")
+    # Attempt to load, but don't fail if missing
     DBLoader.get_retriever()
     DBLoader.get_predictor()
-    print("✅ Engine Loaded & Ready")
+    print("✅ Startup Sequence Complete")
 
 @app.get("/health")
 async def health():
     uptime = time.time() - start_time
     avg_latency = stats["total_latency_ms"] / stats["total_predictions"] if stats["total_predictions"] > 0 else 0
     
+    # Check engine status
+    engine_ready = DBLoader.get_retriever() is not None and DBLoader.get_predictor() is not None
+    
     return {
-        "status": "alive",
+        "status": "alive" if engine_ready else "degraded",
+        "engine_ready": engine_ready,
         "uptime_seconds": round(uptime, 2),
         "total_predictions": stats["total_predictions"],
         "avg_response_time_ms": round(avg_latency, 2),
@@ -45,7 +50,11 @@ async def predict(request: PredictionRequest):
     retriever = DBLoader.get_retriever()
     predictor = DBLoader.get_predictor()
     
-    # 2. Inference
+    if not retriever or not predictor:
+        return {
+            "status": "error",
+            "message": "Clinical engine not initialized. Large data assets (.db, .index) are missing from the environment."
+        }
     retrieval_results = retriever.retrieve(request.symptoms, k=30)
     prediction = predictor.aggregate(retrieval_results, request.symptoms)
     
