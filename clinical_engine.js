@@ -6,11 +6,11 @@ class ClinicalEngine {
         this.brain = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'clinical_brain.json'), 'utf8'));
         this.prevalence = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'disease_prevalence.json'), 'utf8'));
         
-        // India-Specific Priority Boosts (High-Accuracy Production Tuning)
+        // Normalized India-Specific Priority Boosts (LOWERCASE ONLY)
         this.INDIA_PRIORITY = {
-            "Dengue": 1.35, "Malaria": 1.35, "Typhoid": 1.3, "Tuberculosis": 1.3,
-            "Viral Fever": 1.25, "Chikungunya": 1.3, "Amebiasis": 0.5, "Cholera": 1.2,
-            "Common Cold": 5.0, "Influenza": 5.0
+            "dengue": 1.35, "malaria": 1.35, "typhoid": 1.3, "tuberculosis": 1.3,
+            "viral fever": 1.25, "chikungunya": 1.3, "amebiasis": 0.3, "cholera": 1.2,
+            "common cold": 5.0, "influenza": 5.0
         };
 
         // symptom expansion (Colloquial -> Clinical)
@@ -141,11 +141,17 @@ class ClinicalEngine {
             const map = { herbs: h, home_remedies: hr, yoga: y, lifestyle: l };
 
             for (let [key, items] of Object.entries(map)) {
-                if (Array.isArray(items)) {
-                    items.forEach(item => {
-                        remedies[key].set(item, (remedies[key].get(item) || 0) + 1);
-                    });
+                // Support both arrays and comma-separated/single strings
+                let list = items;
+                if (!Array.isArray(list)) {
+                    list = typeof list === 'string' ? list.split(',').map(s => s.trim()) : (list ? [list.toString()] : []);
                 }
+                list.forEach(item => {
+                    const cleanItem = item.toLowerCase().trim();
+                    if (cleanItem.length > 2 && !["none", "n/a", "nil"].includes(cleanItem)) {
+                        remedies[key].set(item, (remedies[key].get(item) || 0) + 1);
+                    }
+                });
             }
         }
 
