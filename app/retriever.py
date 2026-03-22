@@ -1,15 +1,25 @@
-import faiss
 import numpy as np
 import sqlite3
 import json
-from sentence_transformers import SentenceTransformer
-import torch
+import os
 
 class Retriever:
     def __init__(self, index_path="data/ayurveda.index", db_path="data/ayurveda_ai.db", model_name="paraphrase-multilingual-MiniLM-L12-v2"):
-        self.index = faiss.read_index(index_path)
-        self.index.nprobe = 20  # Optimization for recall
+        import faiss
+        import torch
+        from sentence_transformers import SentenceTransformer
+        
+        # Load Index
+        if os.path.exists(index_path):
+            self.index = faiss.read_index(index_path)
+            self.index.nprobe = 20
+        else:
+            self.index = None
+            print(f"⚠️ FAISS Index missing at {index_path}")
+
         self.model = SentenceTransformer(model_name)
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model.to(self.device)
         self.db_path = db_path
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model.to(self.device)

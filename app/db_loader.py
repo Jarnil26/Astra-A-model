@@ -1,6 +1,4 @@
 from app.config import Config
-from app.retriever import Retriever
-from app.predictor import AdvancedPredictor
 
 class DBLoader:
     _retriever = None
@@ -9,6 +7,7 @@ class DBLoader:
     @classmethod
     def get_retriever(cls):
         if cls._retriever is None:
+            from app.retriever import Retriever
             try:
                 cls._retriever = Retriever(
                     index_path=Config.INDEX_PATH,
@@ -23,6 +22,7 @@ class DBLoader:
     @classmethod
     def get_predictor(cls):
         if cls._predictor is None:
+            from app.predictor import AdvancedPredictor
             try:
                 cls._predictor = AdvancedPredictor(
                     db_path=Config.DB_PATH,
