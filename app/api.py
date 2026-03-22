@@ -31,7 +31,8 @@ class PredictionRequest(BaseModel):
 async def startup_event():
     print("-" * 50)
     print("🚀 Astra A0 API: Starting Listener...")
-    print("Engine will load lazily on first request to prevent port timeout.")
+    # Start loading in background immediately but don't wait for it
+    DBLoader.load_in_background()
     print("-" * 50)
 
 @app.get("/health")
@@ -39,12 +40,13 @@ async def health():
     uptime = time.time() - start_time
     avg_latency = stats["total_latency_ms"] / stats["total_predictions"] if stats["total_predictions"] > 0 else 0
     
-    # Check engine status
-    engine_ready = DBLoader.get_retriever() is not None and DBLoader.get_predictor() is not None
+    # Fast check of the ready flag
+    engine_ready = DBLoader.is_ready()
     
     return {
-        "status": "alive" if engine_ready else "degraded",
+        "status": "alive" if engine_ready else "initializing" if DBLoader._loading else "degraded",
         "engine_ready": engine_ready,
+        "loading": DBLoader._loading,
         "uptime_seconds": round(uptime, 2),
         "total_predictions": stats["total_predictions"],
         "avg_response_time_ms": round(avg_latency, 2),
@@ -55,15 +57,17 @@ async def health():
 async def predict(request: PredictionRequest):
     req_start = time.time()
     
-    # 1. Access Singletons
+    # Fast check
+    if not DBLoader.is_ready():
+        return {
+            "status": "error",
+            "message": "Engine initializing. Please wait 1-2 minutes for model and index loading on Render."
+        }
+
     retriever = DBLoader.get_retriever()
     predictor = DBLoader.get_predictor()
     
-    if not retriever or not predictor:
-        return {
-            "status": "error",
-            "message": "Clinical engine not initialized. Large data assets (.db, .index) are missing from the environment."
-        }
+    # 2. Inference
     retrieval_results = retriever.retrieve(request.symptoms, k=30)
     prediction = predictor.aggregate(retrieval_results, request.symptoms)
     
