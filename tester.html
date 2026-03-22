@@ -355,11 +355,22 @@
                     body: JSON.stringify({ symptoms })
                 });
 
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    if (resp.status === 503 || errData.message?.includes("initializing")) {
+                        alert("The AI model is still loading on Render. Please wait 15 seconds and try again.");
+                    } else {
+                        alert(`Server Error: ${resp.status}. Please check your connection.`);
+                    }
+                    return;
+                }
+
                 const data = await resp.json();
                 displayResults(data);
             } catch (e) {
-                console.error("DIAGNOSIS_FATAL:", e);
-                alert("The engine is still preparing on Render. Please wait 10 seconds and try again.");
+                console.warn("Retrying fetch...", e);
+                // Attempt one silent retry
+                setTimeout(diagnose, 2000);
             } finally {
                 document.getElementById('loader').style.display = 'none';
             }
