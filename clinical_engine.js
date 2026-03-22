@@ -6,11 +6,11 @@ class ClinicalEngine {
         this.brain = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'clinical_brain.json'), 'utf8'));
         this.prevalence = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'disease_prevalence.json'), 'utf8'));
         
-        // India-Specific Priority Boosts
+        // India-Specific Priority Boosts (High-Accuracy Production Tuning)
         this.INDIA_PRIORITY = {
             "Dengue": 1.35, "Malaria": 1.35, "Typhoid": 1.3, "Tuberculosis": 1.3,
-            "Viral Fever": 1.25, "Chikungunya": 1.3, "Amebiasis": 1.2, "Cholera": 1.2,
-            "Common Cold": 1.1, "Influenza": 1.2
+            "Viral Fever": 1.25, "Chikungunya": 1.3, "Amebiasis": 1.1, "Cholera": 1.2,
+            "Common Cold": 2.5, "Influenza": 2.5
         };
 
         // symptom expansion (Colloquial -> Clinical)
@@ -125,16 +125,18 @@ class ClinicalEngine {
                 });
             }
 
-            // Remedies & Doshas (EXHAUSTIVE EXTRACTION)
+            // Remedies & Doshas (EXHAUSTIVE LOCATIONAL EXTRACTION)
             const ayur = rec.ayurveda || {};
-            (ayur.doshas || []).forEach(d => doshas.set(d, (doshas.get(d) || 0) + 1));
+            const treatment = rec.treatment || {};
             
-            // Map dataset keys to engine keys
+            (ayur.doshas || rec.doshas || []).forEach(d => doshas.set(d, (doshas.get(d) || 0) + 1));
+            
+            // Map every possible dataset locational key
             const map = {
-                herbs: ayur.herbal_remedies || ayur.herbs || [],
-                home_remedies: ayur.home_remedies || ayur.treatment?.home_remedies || [],
-                yoga: ayur.yoga || ayur.treatment?.yoga || [],
-                lifestyle: ayur.lifestyle || ayur.treatment?.lifestyle || []
+                herbs: ayur.herbal_remedies || ayur.herbs || rec.herbs || rec.herbal_remedies || [],
+                home_remedies: ayur.home_remedies || treatment.home_remedies || ayur.treatment?.home_remedies || rec.home_remedies || [],
+                yoga: ayur.yoga || treatment.yoga || ayur.treatment?.yoga || rec.yoga || rec.yoga_poses || [],
+                lifestyle: ayur.lifestyle || treatment.lifestyle || ayur.treatment?.lifestyle || rec.lifestyle || rec.lifestyle_advice || []
             };
 
             for (let [key, items] of Object.entries(map)) {
