@@ -9,8 +9,8 @@ class ClinicalEngine {
         // India-Specific Priority Boosts (High-Accuracy Production Tuning)
         this.INDIA_PRIORITY = {
             "Dengue": 1.35, "Malaria": 1.35, "Typhoid": 1.3, "Tuberculosis": 1.3,
-            "Viral Fever": 1.25, "Chikungunya": 1.3, "Amebiasis": 1.1, "Cholera": 1.2,
-            "Common Cold": 2.5, "Influenza": 2.5
+            "Viral Fever": 1.25, "Chikungunya": 1.3, "Amebiasis": 0.5, "Cholera": 1.2,
+            "Common Cold": 5.0, "Influenza": 5.0
         };
 
         // symptom expansion (Colloquial -> Clinical)
@@ -132,13 +132,13 @@ class ClinicalEngine {
             
             (ayur.doshas || rec.doshas || []).forEach(d => doshas.set(d, (doshas.get(d) || 0) + 1));
             
-            // Map every possible dataset locational key (Exhaustive Scan)
-            const map = {
-                herbs: ayur.herbal_remedies || ayur.herbs || rec.herbal_remedies || rec.herbs || ayur.herbs_list || [],
-                home_remedies: ayur.home_remedies || treatment.home_remedies || rec.home_remedies || rec.remedies || ayur.home_remedy || rec.home_remedy || [],
-                yoga: ayur.yoga || treatment.yoga || ayur.yoga_poses || rec.yoga || rec.yoga_poses || rec.yoga_list || [],
-                lifestyle: ayur.lifestyle || treatment.lifestyle || rec.lifestyle || ayur.lifestyle_advice || rec.diet_lifestyle || rec.lifestyle_advice || []
-            };
+            // Map every possible dataset locational key (Exhaustive Deep Scan)
+            const h = ayur.herbal_remedies || ayur.herbs || rec.herbal_remedies || rec.herbs || ayur.herbs_list || [];
+            const hr = ayur.home_remedies || treatment.home_remedies || rec.home_remedies || rec.remedies || ayur.home_remedy || rec.home_remedy || ayur.ayurvedic_remedies || [];
+            const y = ayur.yoga || treatment.yoga || ayur.yoga_poses || rec.yoga || rec.yoga_poses || rec.yoga_list || ayur.asana || [];
+            const l = ayur.lifestyle || treatment.lifestyle || rec.lifestyle || ayur.lifestyle_advice || rec.diet_lifestyle || rec.lifestyle_advice || ayur.diet_lifestyle || ayur.dietary_advice || [];
+
+            const map = { herbs: h, home_remedies: hr, yoga: y, lifestyle: l };
 
             for (let [key, items] of Object.entries(map)) {
                 if (Array.isArray(items)) {
