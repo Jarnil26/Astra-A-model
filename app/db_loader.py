@@ -1,5 +1,6 @@
 from app.config import Config
 import threading
+import os
 
 class DBLoader:
     _retriever = None
