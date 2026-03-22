@@ -2,7 +2,6 @@ fastapi
 uvicorn
 numpy
 faiss-cpu
-sentence-transformers
-torch
+fastembed
 requests
 pydantic

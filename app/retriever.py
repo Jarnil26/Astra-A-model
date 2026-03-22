@@ -1,27 +1,24 @@
-import numpy as np
 import sqlite3
 import json
 import os
 
 class Retriever:
-    def __init__(self, index_path="data/ayurveda.index", db_path="data/ayurveda_ai.db", model_name="all-MiniLM-L6-v2"):
+    def __init__(self, index_path="data/ayurveda.index", db_path="data/ayurveda_ai.db", model_name="BAAI/bge-small-en-v1.5"):
+        print(f"📦 Initializing 'Lite' Clinical Retriever (FastEmbed + FAISS)...")
         import faiss
-        import torch
-        from sentence_transformers import SentenceTransformer
+        from fastembed import TextEmbedding
         
-        # 1. Load Model (Approx 80MB for all-MiniLM-L6-v2)
+        # 1. Load Model
         try:
             print(f"📦 Loading AI Model: {model_name}...")
-            self.model = SentenceTransformer(model_name)
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            self.model.to(self.device)
-            self.dim = self.model.get_sentence_embedding_dimension()
+            # FastEmbed automatic local caching
+            self.model = TextEmbedding(model_name=model_name)
+            self.dim = self.model.embedding_dimension
         except Exception as e:
             print(f"❌ Model load failed: {e}")
             self.model = None
 
-        # 2. Load FAISS Index (Attempt Memory-Mapped if possible, else standard)
-        # Note: 534MB index on 512MB RAM is very risky.
+        # 2. Load FAISS Index
         self.index = None
         if os.path.exists(index_path):
             try:
@@ -62,22 +59,45 @@ class Retriever:
         if not self.model: return np.zeros(384)
         
         symptoms = [s.strip().lower() for s in symptoms]
+        
+        # If no symptoms, return a zero vector
+        if not symptoms:
+            return np.zeros(self.dim).astype('float32')
+
         vecs = []
         ws = []
         
-        for s in symptoms:
+        # Prepare symptoms for batch embedding and cache lookup
+        symptoms_to_embed = []
+        symptoms_map = {} # Map original index to symptom string
+        
+        for i, s in enumerate(symptoms):
             if s in self.embedding_cache:
-                emb = self.embedding_cache[s]
+                vecs.append(self.embedding_cache[s])
+                ws.append(self.weights.get(s, 1.0))
             else:
-                emb = self.model.encode([s], convert_to_numpy=True)[0]
+                symptoms_to_embed.append(s)
+                symptoms_map[s] = len(vecs) # Store where this symptom's embedding will go
+                vecs.append(None) # Placeholder
+                ws.append(None) # Placeholder
+
+        # Embed new symptoms in a batch
+        if symptoms_to_embed:
+            # FastEmbed's embed method returns a generator of embeddings
+            new_embeddings = list(self.model.embed(symptoms_to_embed))
+            
+            for s, emb in zip(symptoms_to_embed, new_embeddings):
                 self.embedding_cache[s] = emb
+                idx = symptoms_map[s]
+                vecs[idx] = emb
+                ws[idx] = self.weights.get(s, 1.0)
             
-            w = self.weights.get(s, 1.0)
-            vecs.append(emb)
-            ws.append(w)
-            
+        # Filter out any None placeholders if something went wrong (shouldn't happen with this logic)
+        vecs = [v for v in vecs if v is not None]
+        ws = [w for w in ws if w is not None]
+
         if not vecs:
-            return np.zeros(self.dim)
+            return np.zeros(self.dim).astype('float32')
             
         vecs = np.array(vecs)
         ws = np.array(ws).reshape(-1, 1)

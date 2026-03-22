@@ -10,10 +10,15 @@ class Config:
     PREVALENCE_PATH = os.path.join(DATA_DIR, "disease_prevalence.json")
     
     # Model settings
-    # Switching to 'all-MiniLM-L6-v2' (~80MB) for Render Free Tier (512MB limit)
-    MODEL_NAME = "all-MiniLM-L6-v2"
+    # Switching to 'all-MiniLM-L6-v2' (~80MB)    # Model Configuration (Memory Optimized for 512MB RAM)
+    # Using 'BAAI/bge-small-en-v1.5' via FastEmbed (ONNX)
+    MODEL_NAME = "BAAI/bge-small-en-v1.5"
     FAISS_NPROBE = 20
     RETRIEVAL_K = 30
+    
+    # OS Environment Tweak to prevent OOM
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
     
     # API Settings
     RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "http://localhost:10000")
