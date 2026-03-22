@@ -31,8 +31,8 @@ class PredictionRequest(BaseModel):
 async def startup_event():
     print("-" * 50)
     print("🚀 Astra A0 API: Starting Listener...")
-    # Start loading in background immediately but don't wait for it
-    DBLoader.load_in_background()
+    # Load pre-built small clinic assets instantly
+    DBLoader.load_sync()
     print("-" * 50)
 
 @app.get("/health")
@@ -44,7 +44,7 @@ async def health():
     status = DBLoader.get_status()
     
     return {
-        "status": "ready" if DBLoader.is_ready() else "initializing" if status["is_loading"] else "degraded",
+        "status": "ready" if DBLoader.is_ready() else "degraded",
         "engine": status,
         "uptime_seconds": round(uptime, 2),
         "total_predictions": stats["total_predictions"],
