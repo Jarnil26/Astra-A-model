@@ -111,6 +111,7 @@ class AdvancedPredictor:
         
         # 3. Process Retrieval Results
         potential_candidates = []
+        print(f"🩺 Processing {len(retrieval_results)} records from retriever")
         
         for res in retrieval_results:
             sim = res["similarity"]
@@ -165,6 +166,12 @@ class AdvancedPredictor:
                     
                 remedy_pool[rtype].update([i for i in items])
 
+        )
+        
+        print(f"🩺 Final Candidates Found: {len(potential_candidates)}")
+        if potential_candidates:
+            print(f"🩺 Top Candidate Scored: {potential_candidates[0]['disease']}")
+        
         # --- FINAL STEP: CLINICAL VALIDATION ENGINE ---
         final_preds, clinical_notes = self.validator.validate_and_rank(
             potential_candidates, 

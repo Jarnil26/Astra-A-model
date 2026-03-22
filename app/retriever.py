@@ -113,17 +113,23 @@ class Retriever:
         if self.index is None:
             return self._keyword_retrieve(symptoms, k)
 
-        query_vec = self.get_query_embedding(symptoms).reshape(1, -1)
         similarities, indices = self.index.search(query_vec, k)
+        
+        print(f"🔍 FAISS Top Scores: {similarities[0][:5]}")
+        print(f"🔍 FAISS Top Indices: {indices[0][:5]}")
         
         results = []
         cursor = self.conn.cursor()
         for sim, idx in zip(similarities[0], indices[0]):
-            if idx == -1 or sim < 0.3: continue
+            if idx == -1: continue
+            if sim < 0.2: continue # Lowered threshold to see what we're missing
+            
             cursor.execute("SELECT data FROM records WHERE id = ?", (int(idx) + 1,))
             row = cursor.fetchone()
             if row:
                 results.append({"record": json.loads(row[0]), "similarity": float(sim)})
+        
+        print(f"🔍 Matched Records Count: {len(results)}")
         return results
 
     def _keyword_retrieve(self, symptoms, k=30):
