@@ -172,22 +172,41 @@ class ClinicalEngine {
 
             // Remedies & Doshas aggregation
             const ayur = rec.ayurveda || {};
+            const treatment = rec.treatment || {};
             (ayur.doshas || rec.doshas || []).forEach(d => doshas.set(d, (doshas.get(d) || 0) + 1));
             
-            const map = { 
-                herbs: ayur.herbs || rec.herbs || ayur.herbal_remedies || [], 
-                home_remedies: ayur.home_remedies || rec.home_remedies || [], 
-                yoga: ayur.yoga || rec.yoga || [], 
-                lifestyle: ayur.lifestyle || rec.lifestyle || [] 
-            };
+            // Map every possible dataset locational key (Exhaustive Deep Scan)
+            const h = ayur.herbal_remedies || ayur.herbs || rec.herbal_remedies || rec.herbs || ayur.herbs_list || [];
+            const hr = ayur.home_remedies || treatment.home_remedies || rec.home_remedies || rec.remedies || ayur.formulation || ayur.home_remedy || rec.home_remedy || ayur.ayurvedic_remedies || [];
+            const y = ayur.yoga || treatment.yoga || ayur.yoga_poses || rec.yoga || rec.yoga_poses || rec.yoga_list || ayur.asana || [];
+            const l = ayur.lifestyle_recommendations || ayur.diet_lifestyle_recommendations || treatment.lifestyle || ayur.lifestyle_advice || rec.diet_lifestyle || rec.lifestyle_advice || ayur.diet_lifestyle || ayur.dietary_advice || [];
+
+            const map = { herbs: h, home_remedies: hr, yoga: y, lifestyle: l };
+
+            function extractStrings(obj) {
+                let result = [];
+                if (typeof obj === 'string') {
+                    if (obj.includes(',') && obj.length < 100) {
+                        obj.split(',').forEach(s => {
+                            const clean = s.toLowerCase().trim();
+                            if (clean.length > 2 && !["none", "n/a", "nil", "[object object]"].includes(clean)) result.push(clean);
+                        });
+                    } else {
+                        const clean = obj.toLowerCase().trim();
+                        if (clean.length > 2 && !["none", "n/a", "nil", "[object object]"].includes(clean)) result.push(clean);
+                    }
+                } else if (Array.isArray(obj)) {
+                    obj.forEach(item => result.push(...extractStrings(item)));
+                } else if (typeof obj === 'object' && obj !== null) {
+                    Object.values(obj).forEach(val => result.push(...extractStrings(val)));
+                }
+                return result;
+            }
 
             for (let [key, items] of Object.entries(map)) {
-                let list = Array.isArray(items) ? items : (items ? [items.toString()] : []);
-                list.forEach(item => {
-                    const cleanItem = String(item).toLowerCase().trim();
-                    if (cleanItem.length > 2 && !["none", "n/a", "nil"].includes(cleanItem)) {
-                        remedies[key].set(String(item), (remedies[key].get(String(item)) || 0) + 1);
-                    }
+                const extracted = extractStrings(items);
+                extracted.forEach(cleanItem => {
+                    remedies[key].set(cleanItem, (remedies[key].get(cleanItem) || 0) + 1);
                 });
             }
         }

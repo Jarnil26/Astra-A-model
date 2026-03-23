@@ -137,16 +137,44 @@ class AdvancedPredictor:
                 "prevalence": prev
             })
 
-            # Metadata aggregation
-            dosha_counts.update(rec.get("knowledge", {}).get("dosha_imbalance", rec.get("doshas", [])))
-            for rtype in ["herbs", "home_remedies", "yoga", "lifestyle"]:
-                # Try multiple keys for remedies
-                items = rec.get("remedies", {}).get(rtype, [])
-                if not items:
-                    items = rec.get("ayurveda", {}).get(rtype, []) or rec.get(rtype, [])
+            # Remedies & Doshas aggregation
+            ayur = rec.get("ayurveda", {})
+            treatment = rec.get("treatment", {})
+            
+            for d in ayur.get("doshas", []) + rec.get("doshas", []):
+                dosha_counts[d] += 1
                 
-                if isinstance(items, list):
-                    remedy_pool[rtype].update([str(i) for i in items if i])
+            h = ayur.get("herbal_remedies") or ayur.get("herbs") or rec.get("herbal_remedies") or rec.get("herbs") or ayur.get("herbs_list") or []
+            hr = ayur.get("home_remedies") or treatment.get("home_remedies") or rec.get("home_remedies") or rec.get("remedies") or ayur.get("formulation") or ayur.get("home_remedy") or rec.get("home_remedy") or ayur.get("ayurvedic_remedies") or []
+            y = ayur.get("yoga") or treatment.get("yoga") or ayur.get("yoga_poses") or rec.get("yoga") or rec.get("yoga_poses") or rec.get("yoga_list") or ayur.get("asana") or []
+            l = ayur.get("lifestyle_recommendations") or ayur.get("diet_lifestyle_recommendations") or treatment.get("lifestyle") or ayur.get("lifestyle_advice") or rec.get("diet_lifestyle") or rec.get("lifestyle_advice") or ayur.get("diet_lifestyle") or ayur.get("dietary_advice") or []
+
+            rmap = {"herbs": h, "home_remedies": hr, "yoga": y, "lifestyle": l}
+
+            def extract_strings(obj):
+                result = []
+                if isinstance(obj, str):
+                    if ',' in obj and len(obj) < 100:
+                        for s in obj.split(','):
+                            clean = s.strip().lower()
+                            if len(clean) > 2 and clean not in ["none", "n/a", "nil", "[object object]"]:
+                                result.append(clean)
+                    else:
+                        clean = obj.strip().lower()
+                        if len(clean) > 2 and clean not in ["none", "n/a", "nil", "[object object]"]:
+                            result.append(clean)
+                elif isinstance(obj, list):
+                    for item in obj:
+                        result.extend(extract_strings(item))
+                elif isinstance(obj, dict):
+                    for val in obj.values():
+                        result.extend(extract_strings(val))
+                return result
+
+            for key, items in rmap.items():
+                extracted = extract_strings(items)
+                for clean_item in extracted:
+                    remedy_pool[key][clean_item] += 1
 
         # --- FINAL STEP: CLINICAL VALIDATION ENGINE ---
         final_preds, clinical_notes = self.validator.validate_and_rank(
