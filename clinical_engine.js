@@ -166,47 +166,8 @@ class ClinicalEngine {
                     disease, 
                     score: finalScore, 
                     matchScore, 
-                    prevalence: prevalenceVal 
-                });
-            }
-
-            // Remedies & Doshas aggregation
-            const ayur = rec.ayurveda || {};
-            const treatment = rec.treatment || {};
-            (ayur.doshas || rec.doshas || []).forEach(d => doshas.set(d, (doshas.get(d) || 0) + 1));
-            
-            // Map every possible dataset locational key (Exhaustive Deep Scan)
-            const h = ayur.herbal_remedies || ayur.herbs || rec.herbal_remedies || rec.herbs || ayur.herbs_list || [];
-            const hr = ayur.home_remedies || treatment.home_remedies || rec.home_remedies || rec.remedies || ayur.formulation || ayur.home_remedy || rec.home_remedy || ayur.ayurvedic_remedies || [];
-            const y = ayur.yoga || treatment.yoga || ayur.yoga_poses || rec.yoga || rec.yoga_poses || rec.yoga_list || ayur.asana || [];
-            const l = ayur.lifestyle_recommendations || ayur.diet_lifestyle_recommendations || treatment.lifestyle || ayur.lifestyle_advice || rec.diet_lifestyle || rec.lifestyle_advice || ayur.diet_lifestyle || ayur.dietary_advice || [];
-
-            const map = { herbs: h, home_remedies: hr, yoga: y, lifestyle: l };
-
-            function extractStrings(obj) {
-                let result = [];
-                if (typeof obj === 'string') {
-                    if (obj.includes(',') && obj.length < 100) {
-                        obj.split(',').forEach(s => {
-                            const clean = s.toLowerCase().trim();
-                            if (clean.length > 2 && !["none", "n/a", "nil", "[object object]"].includes(clean)) result.push(clean);
-                        });
-                    } else {
-                        const clean = obj.toLowerCase().trim();
-                        if (clean.length > 2 && !["none", "n/a", "nil", "[object object]"].includes(clean)) result.push(clean);
-                    }
-                } else if (Array.isArray(obj)) {
-                    obj.forEach(item => result.push(...extractStrings(item)));
-                } else if (typeof obj === 'object' && obj !== null) {
-                    Object.values(obj).forEach(val => result.push(...extractStrings(val)));
-                }
-                return result;
-            }
-
-            for (let [key, items] of Object.entries(map)) {
-                const extracted = extractStrings(items);
-                extracted.forEach(cleanItem => {
-                    remedies[key].set(cleanItem, (remedies[key].get(cleanItem) || 0) + 1);
+                    prevalence: prevalenceVal,
+                    rec: rec
                 });
             }
         }
@@ -219,18 +180,87 @@ class ClinicalEngine {
         for (let p of activePatterns) {
             p.diseases.slice(0, 2).forEach(must => {
                 if (!sortedCandidates.some(c => c.disease.toLowerCase() === must.toLowerCase())) {
-                    sortedCandidates.push({ disease: must, score: 0.7, matchScore: 0.5 });
+                    sortedCandidates.push({ disease: must, score: 0.7, matchScore: 0.5, rec: null });
                 }
             });
         }
         sortedCandidates.sort((a, b) => b.score - a.score);
 
+        const topCandidates = sortedCandidates.slice(0, 5);
+
+        // 3. Extract Remedies ONLY from Top Candidates
+        function extractStrings(obj) {
+            let result = [];
+            if (typeof obj === 'string') {
+                if (obj.includes(',') && obj.length < 100) {
+                    obj.split(',').forEach(s => {
+                        const clean = s.toLowerCase().trim();
+                        if (clean.length > 2 && !["none", "n/a", "nil", "[object object]"].includes(clean)) result.push(clean);
+                    });
+                } else {
+                    const clean = obj.toLowerCase().trim();
+                    if (clean.length > 2 && !["none", "n/a", "nil", "[object object]"].includes(clean)) result.push(clean);
+                }
+            } else if (Array.isArray(obj)) {
+                obj.forEach(item => result.push(...extractStrings(item)));
+            } else if (typeof obj === 'object' && obj !== null) {
+                Object.values(obj).forEach(val => result.push(...extractStrings(val)));
+            }
+            return result;
+        }
+
+        // We use the doshas and remedies maps created at the top of the function
+        for (let c of topCandidates) {
+            if (!c.rec) continue;
+            const rec = c.rec;
+            const ayur = rec.ayurveda || {};
+            const treatment = rec.treatment || {};
+            (ayur.doshas || rec.doshas || []).forEach(d => doshas.set(d, (doshas.get(d) || 0) + 1));
+            
+            const h = ayur.herbal_remedies || ayur.herbs || rec.herbal_remedies || rec.herbs || ayur.herbs_list || [];
+            const hr = ayur.home_remedies || treatment.home_remedies || rec.home_remedies || rec.remedies || ayur.formulation || ayur.home_remedy || rec.home_remedy || ayur.ayurvedic_remedies || [];
+            const y = ayur.yoga || treatment.yoga || ayur.yoga_poses || rec.yoga || rec.yoga_poses || rec.yoga_list || ayur.asana || [];
+            const l = ayur.lifestyle_recommendations || ayur.diet_lifestyle_recommendations || treatment.lifestyle || ayur.lifestyle_advice || rec.diet_lifestyle || rec.lifestyle_advice || ayur.diet_lifestyle || ayur.dietary_advice || [];
+
+            const map = { herbs: h, home_remedies: hr, yoga: y, lifestyle: l };
+
+            for (let [key, items] of Object.entries(map)) {
+                const extracted = extractStrings(items);
+                extracted.forEach(cleanItem => {
+                    // Boost based on candidate rank so top diseases dominate
+                    const baseWeight = c.score * 10;
+                    remedies[key].set(cleanItem, (remedies[key].get(cleanItem) || 0) + baseWeight);
+                });
+            }
+        }
+
+        // 4. GLOBAL PROTOCOL INJECTION (Fallback for missing data like Dengue and Malaria)
+        const activeProtocolKeys = new Set();
+        if (topCandidates.length > 0) activeProtocolKeys.add(topCandidates[0].disease.toLowerCase());
+        for (let p of activePatterns) {
+            if (p.name === "Infectious Fever") activeProtocolKeys.add("fever");
+            if (p.name === "Common Cold") activeProtocolKeys.add("common cold");
+            if (p.name === "Respiratory Distress") activeProtocolKeys.add("influenza");
+        }
+
+        for (let pKey of activeProtocolKeys) {
+            if (this.GLOBAL_PROTOCOLS[pKey]) {
+                const protocol = this.GLOBAL_PROTOCOLS[pKey];
+                for (let [key, items] of Object.entries(protocol)) {
+                     if (!remedies[key] || remedies[key].size < 2) {
+                         if (!remedies[key]) remedies[key] = new Map();
+                         items.forEach(item => remedies[key].set(item.toLowerCase().trim(), 100)); // Max priority
+                     }
+                }
+            }
+        }
+
         return {
-            predictions: this.calibrate(sortedCandidates.slice(0, 5)),
+            predictions: this.calibrate(topCandidates),
             dosha: Array.from(doshas.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(x => x[0]),
             remedies: this.getTopRemedies(remedies),
             active_patterns: activePatterns.map(p => p.name),
-            status: sortedCandidates.length > 0 ? "Success" : "More symptoms required."
+            status: topCandidates.length > 0 ? "Success" : "More symptoms required."
         };
     }
 

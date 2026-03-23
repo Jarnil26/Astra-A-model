@@ -13,6 +13,25 @@ class AdvancedPredictor:
         self.pattern_engine = PatternEngine()
         self.validator = ClinicalValidator()
         
+        # Global Clinical Protocol Fallbacks
+        self.GLOBAL_PROTOCOLS = {
+            "common cold": {
+                "home_remedies": ["Ginger Tea", "Honey & Pepper", "Salt water gargle", "Steam inhalation", "Turmeric Milk"],
+                "yoga": ["Pranayama (Nadi Shodhana)", "Surya Namaskar (Slow)", "Matsyasana", "Viparita Karani"],
+                "lifestyle": ["Avoid cold showers", "Drink warm water only", "Rest in a well-ventilated room", "Light diet (Kanji)"]
+            },
+            "fever": {
+                "home_remedies": ["Raisin & Ginger Paste", "Coriander seed water", "Basil (Tulsi) Tea", "Sandalwood paste on forehead"],
+                "yoga": ["Shitalii Pranayama", "Bhramari Pranayama", "Shavasana"],
+                "lifestyle": ["Complete bed rest", "Wipe body with warm water", "Avoid oily/heavy food", "Keep hydrated"]
+            },
+            "influenza": {
+                "home_remedies": ["Ginger & Tulsi decoction", "Garlic infused honey", "Cinnamon tea", "Warm salt water gargle"],
+                "yoga": ["Pranayama", "Adho Mukha Svanasana", "Setu Bandhasana"],
+                "lifestyle": ["Total isolation and rest", "Hydration with warm herbal teas", "Sattvic diet", "Avoid dairy"]
+            }
+        }
+        
         # India-Specific Priority Boosts (Exhaustive Indian Diagnostic Context)
         self.INDIA_PRIORITY = {
             # Infectious & Tropical
@@ -137,7 +156,21 @@ class AdvancedPredictor:
                 "prevalence": prev
             })
 
-            # Remedies & Doshas aggregation
+        # --- FINAL STEP: CLINICAL VALIDATION ENGINE ---
+        final_preds, clinical_notes = self.validator.validate_and_rank(
+            potential_candidates, 
+            input_symptoms, 
+            [p["name"] for p in active_patterns]
+        )
+
+        dosha_counts = Counter()
+        remedy_pool = defaultdict(Counter)
+
+        for pred in final_preds:
+            cand = next((c for c in potential_candidates if c["disease"] == pred["disease"]), None)
+            if not cand or "rec" not in cand: continue
+            
+            rec = cand["rec"]
             ayur = rec.get("ayurveda", {})
             treatment = rec.get("treatment", {})
             
@@ -173,15 +206,26 @@ class AdvancedPredictor:
 
             for key, items in rmap.items():
                 extracted = extract_strings(items)
+                base_weight = cand["score"] * 10
                 for clean_item in extracted:
-                    remedy_pool[key][clean_item] += 1
+                    remedy_pool[key][clean_item] += base_weight
 
-        # --- FINAL STEP: CLINICAL VALIDATION ENGINE ---
-        final_preds, clinical_notes = self.validator.validate_and_rank(
-            potential_candidates, 
-            input_symptoms, 
-            [p["name"] for p in active_patterns]
-        )
+        # GLOBAL PROTOCOL INJECTION (Fallback)
+        active_protocol_keys = set()
+        if final_preds:
+            active_protocol_keys.add(final_preds[0]["disease"].lower())
+        for p in active_patterns:
+            if p["name"] == "Infectious Fever": active_protocol_keys.add("fever")
+            if p["name"] == "Common Cold": active_protocol_keys.add("common cold")
+            if p["name"] == "Respiratory Distress": active_protocol_keys.add("influenza")
+
+        for p_key in active_protocol_keys:
+            if p_key in self.GLOBAL_PROTOCOLS:
+                protocol = self.GLOBAL_PROTOCOLS[p_key]
+                for key, items in protocol.items():
+                    if len(remedy_pool[key]) < 2:
+                        for item in items:
+                            remedy_pool[key][item.lower().strip()] += 100
 
         # Remedy Diversification
         final_remedies = {}
