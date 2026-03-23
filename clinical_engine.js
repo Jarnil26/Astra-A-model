@@ -24,7 +24,12 @@ class ClinicalEngine {
         this.PATTERNS = [
             { name: "Infectious Fever", symptoms: ["fever", "headache", "nausea", "chills"], diseases: ["Dengue", "Malaria", "Viral Fever", "Typhoid", "Influenza"], boost: 2.0 },
             { name: "Common Cold", symptoms: ["cold", "sneezing", "coryza", "runny nose"], diseases: ["Common Cold", "Influenza", "Allergic Rhinitis"], boost: 2.5 },
-            { name: "Respiratory Distress", symptoms: ["cough", "shortness of breath", "fatigue"], diseases: ["COVID-19", "Asthma", "Pneumonia", "Bronchitis"], boost: 1.8 }
+            { name: "Respiratory Distress", symptoms: ["cough", "shortness of breath", "fatigue"], diseases: ["COVID-19", "Asthma", "Pneumonia", "Bronchitis"], boost: 1.8 },
+            { name: "Diabetes Classic", symptoms: ["frequent urination", "increased thirst", "weight loss"], diseases: ["Diabetes"], boost: 2.0 },
+            { name: "Digestive Distress", symptoms: ["abdominal pain", "diarrhea", "vomiting"], diseases: ["Gastroenteritis", "Food poisoning", "Gastritis", "IBS"], boost: 1.6 },
+            { name: "Cardiac Emergency", symptoms: ["chest pain", "shortness of breath", "sweating"], diseases: ["Myocardial infarction", "Angina", "Coronary artery disease"], boost: 2.0 },
+            { name: "Joint Inflammation", symptoms: ["joint pain", "stiffness", "swelling"], diseases: ["Rheumatoid arthritis", "Osteoarthritis", "Gout"], boost: 1.7 },
+            { name: "Urinary Infection", symptoms: ["burning urination", "frequent urination", "lower abdominal pain"], diseases: ["Urinary tract infection", "Cystitis", "Prostatitis"], boost: 1.7 }
         ];
 
         // Global Clinical Protocol Fallbacks
@@ -103,38 +108,57 @@ class ClinicalEngine {
     }
 
     aggregate(retrievalResults, inputSymptoms) {
+        // Normalize input
+        const normalizedInput = inputSymptoms.map(s => s.toLowerCase().trim()).filter(s => s.length > 0);
         const potentialCandidates = new Map();
         const doshas = new Map();
         const remedies = { herbs: new Map(), home_remedies: new Map(), yoga: new Map(), lifestyle: new Map() };
 
         // 1. Detect Patterns
-        const activePatterns = this.detectPatterns(inputSymptoms);
+        const activePatterns = this.detectPatterns(normalizedInput);
         const patternBoostMap = new Map();
+        
         for (let p of activePatterns) {
             for (let d of p.diseases) {
-                patternBoostMap.set(d, p.boost);
+                const currentBoost = patternBoostMap.get(d.toLowerCase()) || 1.0;
+                patternBoostMap.set(d.toLowerCase(), Math.max(currentBoost, p.boost));
             }
         }
 
-        // 2. Score
+        // 2. Score & Filter
         for (let res of retrievalResults) {
             const { record: rec, similarity: sim } = res;
             const disease = (rec.disease || "").trim();
-            
-            // SKIP EMPTY OR INVALID DISEASES
-            if (!disease || disease.length < 2) continue;
-            
-            const recSymptoms = rec.symptoms || [];
-            const matchScore = this.getMatchScore(recSymptoms, inputSymptoms);
-            
-            // Clinical Dominance Scoring (Aggressive Production Final)
-            // Clinical overlap (matchScore) is now 80% of the decision logic.
             const lookup = disease.toLowerCase();
+            
+            // STRICT FILTERING
+            if (!disease || disease.length < 3) continue;
+            
+            // Remove symptoms-as-diseases
+            const symptomDiseases = ["fever", "cough", "pain", "headache", "nausea", "cold"];
+            if (normalizedInput.includes(lookup) && symptomDiseases.includes(lookup)) continue;
+            
+            // Pattern Category Enforcement
+            if (activePatterns.length > 0) {
+                let isAllowed = false;
+                for (let p of activePatterns) {
+                    if (p.diseases.some(d => d.toLowerCase() === lookup)) {
+                        isAllowed = true;
+                        break;
+                    }
+                }
+                if (!isAllowed && sim < 0.85) continue; 
+            }
+
+            const recSymptoms = rec.symptoms || (rec.input ? rec.input.symptoms : []);
+            const matchScore = this.getMatchScore(recSymptoms, normalizedInput);
+            
             const prevalenceVal = this.prevalence[disease] || (this.prevalence[lookup] || 0.05);
             const indiaBoost = this.INDIA_PRIORITY[lookup] || 1.0;
-            const pattBoost = patternBoostMap.get(disease) || (patternBoostMap.get(lookup) || 1.0);
+            const pattBoost = patternBoostMap.get(lookup) || 1.0;
 
-            const score = (0.05 * sim) + (0.05 * prevalenceVal) + (0.8 * matchScore) + (0.1 * (pattBoost - 1.0));
+            // Updated Formula: 0.4*sim + 0.2*prev + 0.15*match + 0.15*(pattBoost-1)
+            const score = (0.4 * sim) + (0.2 * prevalenceVal) + (0.15 * matchScore) + (0.15 * (pattBoost - 1.0));
             const finalScore = score * indiaBoost;
 
             if (!potentialCandidates.has(disease) || finalScore > potentialCandidates.get(disease).score) {
@@ -146,55 +170,41 @@ class ClinicalEngine {
                 });
             }
 
-            // Remedies & Doshas (EXHAUSTIVE LOCATIONAL EXTRACTION)
+            // Remedies & Doshas aggregation
             const ayur = rec.ayurveda || {};
-            const treatment = rec.treatment || {};
-            
             (ayur.doshas || rec.doshas || []).forEach(d => doshas.set(d, (doshas.get(d) || 0) + 1));
             
-            // Map every possible dataset locational key (Exhaustive Deep Scan)
-            const h = ayur.herbal_remedies || ayur.herbs || rec.herbal_remedies || rec.herbs || ayur.herbs_list || [];
-            const hr = ayur.home_remedies || treatment.home_remedies || rec.home_remedies || rec.remedies || ayur.home_remedy || rec.home_remedy || ayur.ayurvedic_remedies || [];
-            const y = ayur.yoga || treatment.yoga || ayur.yoga_poses || rec.yoga || rec.yoga_poses || rec.yoga_list || ayur.asana || [];
-            const l = ayur.lifestyle || treatment.lifestyle || rec.lifestyle || ayur.lifestyle_advice || rec.diet_lifestyle || rec.lifestyle_advice || ayur.diet_lifestyle || ayur.dietary_advice || [];
-
-            const map = { herbs: h, home_remedies: hr, yoga: y, lifestyle: l };
+            const map = { 
+                herbs: ayur.herbs || rec.herbs || ayur.herbal_remedies || [], 
+                home_remedies: ayur.home_remedies || rec.home_remedies || [], 
+                yoga: ayur.yoga || rec.yoga || [], 
+                lifestyle: ayur.lifestyle || rec.lifestyle || [] 
+            };
 
             for (let [key, items] of Object.entries(map)) {
-                // Support both arrays and comma-separated/single strings
-                let list = items;
-                if (!Array.isArray(list)) {
-                    list = typeof list === 'string' ? list.split(',').map(s => s.trim()) : (list ? [list.toString()] : []);
-                }
+                let list = Array.isArray(items) ? items : (items ? [items.toString()] : []);
                 list.forEach(item => {
-                    let val = item;
-                    if (typeof val === 'object' && val !== null) {
-                        val = val.text || val.advice || val.description || JSON.stringify(val);
-                    }
-                    const cleanItem = String(val).toLowerCase().trim();
-                    if (cleanItem.length > 2 && !["none", "n/a", "nil", "[object object]"].includes(cleanItem)) {
-                        remedies[key].set(String(val), (remedies[key].get(String(val)) || 0) + 1);
+                    const cleanItem = String(item).toLowerCase().trim();
+                    if (cleanItem.length > 2 && !["none", "n/a", "nil"].includes(cleanItem)) {
+                        remedies[key].set(String(item), (remedies[key].get(String(item)) || 0) + 1);
                     }
                 });
             }
         }
 
-        const sortedCandidates = Array.from(potentialCandidates.values())
-            .filter(c => c.matchScore > 0)
+        let sortedCandidates = Array.from(potentialCandidates.values())
+            .filter(c => c.matchScore > 0.1)
             .sort((a, b) => b.score - a.score);
 
-        // 4. Inject Global Protocol Fallback for Top Prediction
-        if (sortedCandidates.length > 0) {
-            const top = sortedCandidates[0].disease.toLowerCase();
-            const protocol = this.GLOBAL_PROTOCOLS[top];
-            if (protocol) {
-                Object.entries(protocol).forEach(([key, items]) => {
-                    if (remedies[key].size < 2) { // Only inject if DB record is thin
-                        items.forEach(item => remedies[key].set(item, 100)); // High priority
-                    }
-                });
-            }
+        // Inject Core Diseases if missing
+        for (let p of activePatterns) {
+            p.diseases.slice(0, 2).forEach(must => {
+                if (!sortedCandidates.some(c => c.disease.toLowerCase() === must.toLowerCase())) {
+                    sortedCandidates.push({ disease: must, score: 0.7, matchScore: 0.5 });
+                }
+            });
         }
+        sortedCandidates.sort((a, b) => b.score - a.score);
 
         return {
             predictions: this.calibrate(sortedCandidates.slice(0, 5)),
@@ -210,33 +220,34 @@ class ClinicalEngine {
         return this.PATTERNS.filter(p => {
             const pSymptSet = new Set(p.symptoms.map(s => s.toLowerCase().trim()));
             const intersection = Array.from(pSymptSet).filter(x => inputSet.has(x));
-            return intersection.length >= 2 || (intersection.length / pSymptSet.size) >= 0.7;
+            return intersection.length >= 2 || (intersection.length / pSymptSet.size) >= 0.6;
         });
     }
 
     calibrate(candidates) {
         if (candidates.length === 0) return [];
-        const maxScore = candidates[0].score || 0.1;
+        const scores = candidates.map(c => c.score);
+        const maxScore = Math.max(...scores);
+        const temp = 0.1;
         
+        const exps = scores.map(s => Math.exp((s - maxScore) / temp));
+        const sumExps = exps.reduce((a, b) => a + b, 0);
+        const softProbs = exps.map(e => e / sumExps);
+
         return candidates.map((c, i) => {
-            const currentScore = c.score || 0;
-            // Numerical stability: Clamp score diff
-            let diff = (currentScore - maxScore) / 0.1;
-            if (isNaN(diff)) diff = -10;
-            
-            let conf = Math.exp(diff);
-            
-            // Clamp and bias
-            conf = Math.min(Math.max(conf, 0.4), 0.95);
-            if (i === 0) conf = Math.max(conf, 0.85);
-            
-            // Boost for high clinical matches
-            if (c.matchScore >= 0.8) conf = Math.max(conf, 0.9);
+            let conf = softProbs[i];
+            conf = Math.min(Math.max(conf, 0.5), 0.9);
+            if (i === 0) conf = Math.max(conf, 0.76);
             
             return {
                 disease: c.disease,
                 confidence: Number(conf.toFixed(2))
             };
+        }).map((c, i, arr) => {
+            if (i > 0 && c.confidence >= arr[i-1].confidence) {
+                c.confidence = Number((arr[i-1].confidence - 0.03).toFixed(2));
+            }
+            return c;
         });
     }
 
@@ -245,12 +256,8 @@ class ClinicalEngine {
         for (let type in remedyPool) {
             final[type] = Array.from(remedyPool[type].entries())
                 .sort((a, b) => b[1] - a[1])
-                .map(x => x[0].toLowerCase().trim())
-                .filter(item => {
-                    // FILTER OUT GENERIC PLACEHOLDERS
-                    const generic = ["none", "none specific", "n/a", "no", "nil", "void", "none."];
-                    return item.length > 2 && !generic.includes(item);
-                })
+                .map(x => x[0])
+                .filter(item => item.length > 2 && !["none", "n/a"].includes(item.toLowerCase()))
                 .slice(0, 5);
         }
         return final;
