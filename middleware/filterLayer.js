@@ -113,6 +113,13 @@ async function processMessage({ message, sessionId, apiBaseUrl }) {
         return buildResponse(response.text, response.structured, finalLang, startTime);
     }
 
+    // Step 10.5: If the API succeeded but could not determine any predictions (e.g. vague/single symptom like "fever")
+    if (apiResult.data && (!apiResult.data.predictions || apiResult.data.predictions.length === 0)) {
+        const response = formatNeedMoreSymptoms(finalLang, allSymptoms);
+        sessionManager.addToHistory(sessionId, 'assistant', response.text);
+        return buildResponse(response.text, response.structured, finalLang, startTime);
+    }
+
     // Step 11: Format response with translation
     const isEmergency = intentResult.intent === 'EMERGENCY' || intentResult.emergencyDetected;
     const response = formatResponse(apiResult.data, finalLang, allSymptoms, isEmergency);

@@ -23,7 +23,7 @@
     "headache": {
       "english": ["headache", "head pain", "head ache", "cephalgia"],
       "hindi": ["sar dard", "sir dard", "sir me dard", "sar me dard", "सिर दर्द", "सिर में दर्द", "माथे में दर्द"],
-      "gujarati": ["sar dukhay", "mathanu dukhavu", "માથું દુખે છે", "સર દુખાવો"],
+      "gujarati": ["sar dukhay", "mathanu dukhavu", "mathu dukhe", "mathe dukhe", "mathu", "માથું દુખે છે", "સર દુખાવો"],
       "marathi": ["dokyat dukhte", "dokyat dukhi", "डोक्यात दुखतंय", "डोके दुखतंय"],
       "tamil": ["thalai vali", "thalai valikuthu", "தலைவலி", "தலை வலிக்குது"],
       "telugu": ["tala noppi", "తలనొప్పి", "తల నొప్పిగా ఉంది"],
@@ -454,7 +454,7 @@
   "stopwords": {
     "hindi": ["mujhe", "mera", "mere", "hai", "ho", "raha", "rahi", "rahe", "hain", "bhi", "bahut", "thoda", "mein", "me", "se", "ka", "ki", "ke", "ko", "pe", "par", "aur", "ya", "na", "nahi", "kuch", "koi", "ek", "do", "toh", "abhi", "kal", "aaj", "lagta"],
     "english": ["i", "my", "me", "am", "is", "are", "have", "has", "had", "been", "the", "a", "an", "and", "or", "but", "so", "very", "much", "lot", "also", "too", "some", "from", "with", "for", "to", "of", "in", "on", "at", "its", "it", "this", "that", "really", "think", "having", "getting", "feeling", "feel", "got"],
-    "gujarati": ["mane", "maara", "che", "hatu", "thyu", "bahu"],
+    "gujarati": ["mane", "maara", "che", "6", "hatu", "thyu", "bahu"],
     "marathi": ["mala", "mazha", "ahe", "hoyte", "khup"],
     "tamil": ["enakku", "ennoda", "irukku", "romba"],
     "telugu": ["naaku", "naadi", "undi", "chaala"],
