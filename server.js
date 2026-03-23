@@ -3,6 +3,7 @@ const cors = require('cors');
 const { pipeline } = require('@xenova/transformers');
 const engine = require('./clinical_engine');
 const path = require('path');
+const { createChatMiddleware, createSessionInfoHandler } = require('./middleware/filterLayer');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -117,7 +118,19 @@ app.post('/predict', async (req, res) => {
     }
 });
 
+// --- MULTILINGUAL CLINICAL FILTER LAYER ---
+// POST /chat — Conversational interface with multilingual support
+const PREDICT_BASE = process.env.PREDICT_API_URL || `http://localhost:${PORT}`;
+app.post('/chat', createChatMiddleware(PREDICT_BASE));
+
+// GET /session/:sessionId — View session info (symptoms, history)
+// GET /session — View all active sessions
+app.get('/session/:sessionId?', createSessionInfoHandler());
+
 app.listen(PORT, () => {
     console.log(`🚀 Astra A0 Node API listening on port ${PORT}`);
+    console.log(`💬 Multilingual Chat: POST /chat`);
+    console.log(`🩺 Predict API: POST /predict`);
+    console.log(`❤️  Health: GET /health`);
     initModel();
 });
