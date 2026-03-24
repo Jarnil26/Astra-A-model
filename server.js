@@ -4,7 +4,8 @@ const { pipeline } = require('@xenova/transformers');
 const engine = require('./clinical_engine');
 const path = require('path');
 const { createChatMiddleware, createSessionInfoHandler } = require('./middleware/filterLayer');
-const uploadRouter = require('./routes/upload');
+const uploadRouter = require('./routes/report');  // R0.0 — pure Node.js
+
 
 const app = express();
 const PORT = process.env.PORT || 10000;
