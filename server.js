@@ -4,12 +4,13 @@ const { pipeline } = require('@xenova/transformers');
 const engine = require('./clinical_engine');
 const path = require('path');
 const { createChatMiddleware, createSessionInfoHandler } = require('./middleware/filterLayer');
+const uploadRouter = require('./routes/upload');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));  // JSON body limit
 
 // --- GLOBAL STATE & CACHE ---
 let embedder = null;
@@ -127,10 +128,25 @@ app.post('/chat', createChatMiddleware(PREDICT_BASE));
 // GET /session — View all active sessions
 app.get('/session/:sessionId?', createSessionInfoHandler());
 
+// --- ASTRA R0.0 — REPORT UPLOAD ---
+// POST /upload-report — Upload lab report for analysis
+app.use('/upload-report', uploadRouter);
+
+// Static: serve report.html at /report
+app.get('/report', (req, res) => {
+    res.sendFile(path.join(__dirname, 'report.html'));
+});
+
+// Static: serve chat.html at /chat-ui (backwards compat)
+app.get('/chat-ui', (req, res) => {
+    res.sendFile(path.join(__dirname, 'chat.html'));
+});
+
 app.listen(PORT, () => {
-    console.log(`🚀 Astra A0 Node API listening on port ${PORT}`);
-    console.log(`💬 Multilingual Chat: POST /chat`);
-    console.log(`🩺 Predict API: POST /predict`);
-    console.log(`❤️  Health: GET /health`);
+    console.log(`🚀 Astra A0  Node API   → port ${PORT}`);
+    console.log(`💬 Chat      (A0.0)     → POST /chat`);
+    console.log(`📋 Reports   (R0.0)     → POST /upload-report`);
+    console.log(`🩺 Predict              → POST /predict`);
+    console.log(`❤️  Health              → GET  /health`);
     initModel();
 });

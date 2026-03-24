@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astra R0.0 – Clinical Report Analysis</title>
+  <meta name="description" content="Upload a medical lab report (PDF/image) to get AI-powered clinical insights, abnormality detection, and health recommendations." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:       #0a0d14;
+      --surface:  #111520;
+      --card:     #161c2e;
+      --border:   #1e2a45;
+      --accent:   #4f8ef7;
+      --accent2:  #7c5cfc;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --orange:   #f97316;
+      --yellow:   #eab308;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --font:     'Inter', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── HEADER ──────────────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .logo-icon { font-size: 1.4rem; -webkit-text-fill-color: initial; }
+    .nav-links { display: flex; gap: .75rem; }
+    .nav-link {
+      padding: .4rem .9rem;
+      border-radius: 8px;
+      font-size: .85rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      color: var(--muted);
+      border: 1px solid transparent;
+      transition: all .2s;
+    }
+    .nav-link:hover { color: var(--text); border-color: var(--border); }
+    .nav-link.active {
+      background: rgba(79,142,247,.12);
+      color: var(--accent);
+      border-color: rgba(79,142,247,.3);
+    }
+
+    /* ─── LAYOUT ─────────────────────────────────────────────────────────── */
+    .main-wrapper {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 0;
+      flex: 1;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+    }
+
+    /* ─── SIDEBAR ────────────────────────────────────────────────────────── */
+    aside {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .sidebar-title {
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+    }
+
+    /* Upload Card */
+    .upload-card {
+      background: var(--card);
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 2rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all .25s;
+      position: relative;
+    }
+    .upload-card.drag-over {
+      border-color: var(--accent);
+      background: rgba(79,142,247,.06);
+    }
+    .upload-card:hover { border-color: var(--accent); }
+    .upload-icon { font-size: 2.5rem; margin-bottom: .75rem; }
+    .upload-card h3 { font-size: .95rem; margin-bottom: .3rem; }
+    .upload-card p { font-size: .78rem; color: var(--muted); }
+    #fileInput { display: none; }
+
+    /* Patient Hints */
+    .field-group { display: flex; flex-direction: column; gap: .75rem; }
+    .field-group label { font-size: .8rem; color: var(--muted); }
+    .field-group input, .field-group select {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: .45rem .7rem;
+      font-size: .85rem;
+      width: 100%;
+      transition: border-color .2s;
+    }
+    .field-group input:focus, .field-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .field-row .field-group { gap: .3rem; }
+
+    /* Analyze Button */
+    .btn-analyze {
+      width: 100%;
+      padding: .7rem;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+    }
+    .btn-analyze:hover { opacity: .9; transform: translateY(-1px); }
+    .btn-analyze:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    /* File Preview */
+    .file-preview {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .75rem;
+      display: none;
+      align-items: center;
+      gap: .6rem;
+    }
+    .file-preview.show { display: flex; }
+    .file-icon { font-size: 1.4rem; }
+    .file-meta { flex: 1; }
+    .file-meta .name { font-size: .82rem; font-weight: 500; word-break: break-all; }
+    .file-meta .size { font-size: .75rem; color: var(--muted); }
+    .remove-file { cursor: pointer; color: var(--muted); font-size: 1.1rem; }
+    .remove-file:hover { color: var(--red); }
+
+    /* ─── MAIN PANEL ─────────────────────────────────────────────────────── */
+    main {
+      overflow-y: auto;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+
+    .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 1rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .placeholder-icon { font-size: 5rem; opacity: .3; }
+    .placeholder h2 { font-size: 1.3rem; font-weight: 600; color: var(--text); }
+    .placeholder p { font-size: .9rem; max-width: 380px; }
+
+    /* ── Loading ── */
+    .loading {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 3rem;
+      color: var(--muted);
+    }
+    .loading.show { display: flex; }
+    .spinner {
+      width: 52px;
+      height: 52px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-steps { display: flex; flex-direction: column; gap: .5rem; align-items: center; }
+    .loading-step { font-size: .82rem; animation: fadeIn .5s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* ── Cards ── */
+    .result-section { display: flex; flex-direction: column; gap: 1rem; }
+    .section-header {
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      padding-bottom: .5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Patient Card */
+    .patient-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .patient-field { display: flex; flex-direction: column; gap: .2rem; }
+    .patient-field .label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .patient-field .value { font-size: .92rem; font-weight: 500; }
+
+    /* Urgent Banner */
+    .urgent-banner {
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.4);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      gap: .75rem;
+      align-items: flex-start;
+    }
+    .urgent-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .urgent-text h4 { font-size: .9rem; font-weight: 600; color: var(--red); margin-bottom: .25rem; }
+    .urgent-text ul { padding-left: 1.2rem; font-size: .82rem; color: #fca5a5; }
+
+    /* Lab Values Table */
+    .lab-table-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    thead { background: rgba(255,255,255,.03); }
+    th {
+      padding: .65rem 1rem;
+      text-align: left;
+      font-size: .72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+    }
+    td { padding: .55rem 1rem; border-top: 1px solid var(--border); }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .25rem;
+      padding: .2rem .55rem;
+      border-radius: 5px;
+      font-size: .72rem;
+      font-weight: 600;
+    }
+    .status-normal   { background: rgba(34,197,94,.1);   color: var(--green); }
+    .status-low      { background: rgba(234,179,8,.1);   color: var(--yellow); }
+    .status-high     { background: rgba(239,68,68,.1);   color: var(--red); }
+    .status-critical { background: rgba(239,68,68,.2);   color: #ff6b6b; border: 1px solid rgba(239,68,68,.4); }
+
+    /* Prediction Cards */
+    .predictions-grid { display: flex; flex-direction: column; gap: .75rem; }
+    .pred-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.1rem 1.25rem;
+      transition: border-color .2s;
+    }
+    .pred-card:first-child { border-left: 3px solid var(--accent); }
+    .pred-card.urgent-card { border-left: 3px solid var(--red); }
+    .pred-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: .65rem; }
+    .pred-name { font-size: .95rem; font-weight: 600; }
+    .pred-conf { font-size: .8rem; color: var(--muted); }
+    .confidence-bar { background: var(--border); border-radius: 99px; height: 6px; }
+    .confidence-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width .8s ease;
+    }
+    .pred-tests { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .65rem; }
+    .test-tag {
+      background: rgba(79,142,247,.1);
+      color: var(--accent);
+      border-radius: 5px;
+      padding: .15rem .5rem;
+      font-size: .72rem;
+    }
+
+    /* Recommendations */
+    .rec-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .75rem;
+    }
+    .rec-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+    }
+    .rec-icon { font-size: 1.1rem; margin-bottom: .5rem; }
+    .rec-title { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .5rem; }
+    .rec-list { list-style: none; display: flex; flex-direction: column; gap: .35rem; }
+    .rec-list li { font-size: .8rem; color: #a8b4cc; display: flex; gap: .4rem; }
+    .rec-list li::before { content: '→'; color: var(--accent); flex-shrink: 0; }
+    .rec-doctor { grid-column: 1 / -1; }
+    .rec-doctor .rec-list li::before { content: '🩺'; }
+
+    /* Normal tests collapse */
+    .collapse-toggle {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: .82rem;
+      padding: .5rem 0;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-family: var(--font);
+    }
+    .collapse-toggle:hover { color: var(--text); }
+
+    /* Error state */
+    .error-card {
+      background: rgba(239,68,68,.07);
+      border: 1px solid rgba(239,68,68,.25);
+      border-radius: 14px;
+      padding: 1.25rem;
+    }
+    .error-card h4 { color: var(--red); margin-bottom: .4rem; }
+    .error-card p { font-size: .85rem; color: #fca5a5; }
+
+    /* ─── RESPONSIVE ─────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .main-wrapper { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      aside { max-height: 320px; }
+      .rec-grid { grid-template-columns: 1fr; }
+      .rec-doctor { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── HEADER ──────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <span class="logo-icon">🧬</span>
+    <span>Astra</span>
+  </div>
+  <nav class="nav-links">
+    <a href="/chat-ui" class="nav-link">💬 Chat (A0.0)</a>
+    <a href="/report"  class="nav-link active">📋 Report (R0.0)</a>
+  </nav>
+</header>
+
+<div class="main-wrapper">
+
+  <!-- ─── SIDEBAR ────────────────────────────────────────────────────────────── -->
+  <aside>
+    <div>
+      <p class="sidebar-title">Upload Report</p>
+    </div>
+
+    <!-- Drag-drop zone -->
+    <div class="upload-card" id="dropZone">
+      <div class="upload-icon">📄</div>
+      <h3>Drop your report here</h3>
+      <p>PDF, JPG, PNG — up to 20MB</p>
+      <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff,.webp" />
+    </div>
+
+    <!-- File preview -->
+    <div class="file-preview" id="filePreview">
+      <span class="file-icon" id="fileTypeIcon">📄</span>
+      <div class="file-meta">
+        <div class="name" id="fileName">—</div>
+        <div class="size" id="fileSize">—</div>
+      </div>
+      <span class="remove-file" id="removeFile" title="Remove">✕</span>
+    </div>
+
+    <!-- Patient hints -->
+    <div>
+      <p class="sidebar-title" style="margin-bottom:.75rem">Patient Hints (optional)</p>
+      <div class="field-row">
+        <div class="field-group">
+          <label for="ageInput">Age</label>
+          <input type="number" id="ageInput" placeholder="e.g. 34" min="0" max="120" />
+        </div>
+        <div class="field-group">
+          <label for="genderInput">Gender</label>
+          <select id="genderInput">
+            <option value="">Auto</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-analyze" id="analyzeBtn" disabled>
+      🔍 Analyze Report
+    </button>
+
+    <p style="font-size:.72rem;color:var(--muted);line-height:1.5">
+      ⚕️ This is AI-assisted analysis for informational purposes only. Always consult a licensed physician.
+    </p>
+  </aside>
+
+  <!-- ─── MAIN PANEL ──────────────────────────────────────────────────────────── -->
+  <main id="mainPanel">
+
+    <!-- Placeholder -->
+    <div class="placeholder" id="placeholder">
+      <div class="placeholder-icon">🧬</div>
+      <h2>Astra R0.0 – Report Intelligence</h2>
+      <p>Upload a blood test, urine test, or any lab report. The AI will extract values, detect abnormalities, and give you clinical insights.</p>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div class="loading-steps" id="loadingSteps">
+        <div class="loading-step">📤 Uploading report…</div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results" style="display:none; display:flex; flex-direction:column; gap:1.75rem;">
+    </div>
+
+  </main>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+
+// ── Element refs ─────────────────────────────────────────────────────────────
+const dropZone      = document.getElementById('dropZone');
+const fileInput     = document.getElementById('fileInput');
+const filePreview   = document.getElementById('filePreview');
+const fileName      = document.getElementById('fileName');
+const fileSize      = document.getElementById('fileSize');
+const fileTypeIcon  = document.getElementById('fileTypeIcon');
+const removeFile    = document.getElementById('removeFile');
+const analyzeBtn    = document.getElementById('analyzeBtn');
+const placeholder   = document.getElementById('placeholder');
+const loadingEl     = document.getElementById('loading');
+const loadingSteps  = document.getElementById('loadingSteps');
+const resultsEl     = document.getElementById('results');
+const ageInput      = document.getElementById('ageInput');
+const genderInput   = document.getElementById('genderInput');
+
+let selectedFile = null;
+
+// ── Drag & Drop ──────────────────────────────────────────────────────────────
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) setFile(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) setFile(fileInput.files[0]);
+});
+removeFile.addEventListener('click', () => clearFile());
+
+function setFile(f) {
+  selectedFile = f;
+  fileName.textContent = f.name;
+  fileSize.textContent = formatBytes(f.size);
+  fileTypeIcon.textContent = f.type.startsWith('image') ? '🖼️' : '📄';
+  filePreview.classList.add('show');
+  analyzeBtn.disabled = false;
+}
+
+function clearFile() {
+  selectedFile = null;
+  fileInput.value = '';
+  filePreview.classList.remove('show');
+  analyzeBtn.disabled = true;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// ── Analyze ──────────────────────────────────────────────────────────────────
+analyzeBtn.addEventListener('click', runAnalysis);
+
+async function runAnalysis() {
+  if (!selectedFile) return;
+
+  // Show loading
+  placeholder.style.display = 'none';
+  resultsEl.style.display = 'none';
+  loadingEl.classList.add('show');
+  analyzeBtn.disabled = true;
+  loadingSteps.innerHTML = '<div class="loading-step">📤 Uploading report…</div>';
+
+  // Loading step simulation
+  const steps = [
+    [1200, '🔍 Running OCR extraction…'],
+    [2800, '🧪 Parsing lab values…'],
+    [4000, '📊 Detecting abnormalities…'],
+    [5200, '🧠 Predicting diagnoses…'],
+    [6500, '💊 Generating recommendations…'],
+  ];
+  const timers = steps.map(([ms, msg]) =>
+    setTimeout(() => {
+      loadingSteps.innerHTML += `<div class="loading-step">${msg}</div>`;
+    }, ms)
+  );
+
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    if (ageInput.value)    formData.append('age',    ageInput.value);
+    if (genderInput.value) formData.append('gender', genderInput.value);
+
+    const resp = await fetch(`${API_BASE}/upload-report`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    timers.forEach(clearTimeout);
+
+    const data = await resp.json();
+
+    if (!resp.ok || !data.success) {
+      throw new Error(data.error || `Server error ${resp.status}`);
+    }
+
+    renderResults(data);
+
+  } catch (err) {
+    timers.forEach(clearTimeout);
+    loadingEl.classList.remove('show');
+    placeholder.style.display = 'none';
+    renderError(err.message);
+  } finally {
+    loadingEl.classList.remove('show');
+    analyzeBtn.disabled = false;
+  }
+}
+
+// ── Render Results ────────────────────────────────────────────────────────────
+function renderResults(data) {
+  resultsEl.innerHTML = '';
+  resultsEl.style.display = 'flex';
+
+  // ① Patient info
+  const patient = data.patient || {};
+  if (Object.values(patient).some(v => v !== null)) {
+    const fields = [
+      ['Name', patient.name || '—'],
+      ['Age', patient.age ? `${patient.age} yrs` : '—'],
+      ['Gender', patient.gender ? cap(patient.gender) : '—'],
+      ['Report ID', patient.report_id || '—'],
+      ['Date', patient.date || '—'],
+    ];
+    const card = el('div', 'result-section',
+      el('p', 'section-header', '🧍 Patient Info'),
+      el('div', 'patient-card',
+        ...fields.map(([label, value]) =>
+          el('div', 'patient-field',
+            el('span', 'label', label),
+            el('span', 'value', value)
+          )
+        )
+      )
+    );
+    resultsEl.appendChild(card);
+  }
+
+  // ② Urgent banner
+  if (data.is_urgent || (data.recommendations?.warnings?.length > 0)) {
+    const warnings = data.recommendations?.warnings || [];
+    const banner = el('div', 'urgent-banner',
+      el('span', 'urgent-icon', '🚨'),
+      el('div', 'urgent-text',
+        el('h4', null, '⚠️ Urgent Clinical Attention Required'),
+        el('ul', null,
+          ...warnings.map(w => el('li', null, w))
+        )
+      )
+    );
+    resultsEl.appendChild(banner);
+  }
+
+  // ③ Abnormal lab values
+  const abnormal = data.abnormalities || [];
+  if (abnormal.length > 0) {
+    const tableRows = abnormal.map(a => {
+      const statusClass = getStatusClass(a.status);
+      const devText = a.deviation_pct != null ? `(${a.deviation_pct > 0 ? '+' : ''}${a.deviation_pct}%)` : '';
+      return `<tr>
+        <td style="font-weight:500">${esc(a.display_name || a.test)}</td>
+        <td style="font-family:'JetBrains Mono',monospace">${a.value} ${esc(a.unit)}</td>
+        <td>${esc(a.reference_range)}</td>
+        <td><span class="status-badge ${statusClass}">${statusEmoji(a.status)} ${cap(a.status.replace('_', ' '))} ${devText}</span></td>
+        <td>${a.is_critical ? '🔴' : ''}</td>
+      </tr>`;
+    }).join('');
+
+    const section = el('div', 'result-section',
+      el('p', 'section-header', `🚨 Abnormal Values (${abnormal.length})`)
+    );
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'lab-table-wrap';
+    tableWrap.innerHTML = `<table>
+      <thead><tr><th>Test</th><th>Value</th><th>Reference</th><th>Status</th><th></th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>`;
+    section.appendChild(tableWrap);
+    resultsEl.appendChild(section);
+  }
+
+  // ④ Normal tests (collapsed by default)
+  const normal = data.normal_tests || [];
+  if (normal.length > 0) {
+    const section = el('div', 'result-section');
+    const toggle = document.createElement('button');
+    toggle.className = 'collapse-toggle';
+    toggle.innerHTML = `▶ Show ${normal.length} normal test${normal.length > 1 ? 's' : ''}`;
+    let expanded = false;
+
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'lab-table-wrap';
+    tableWrap.style.display = 'none';
+    tableWrap.innerHTML = `<table>
+      <thead><tr><th>Test</th><th>Value</th><th>Reference</th><th>Status</th></tr></thead>
+      <tbody>${normal.map(t => `<tr>
+        <td>${esc(t.display_name || t.test)}</td>
+        <td style="font-family:'JetBrains Mono',monospace">${t.value} ${esc(t.unit)}</td>
+        <td>${esc(t.reference_range)}</td>
+        <td><span class="status-badge status-normal">✅ Normal</span></td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+    toggle.addEventListener('click', () => {
+      expanded = !expanded;
+      tableWrap.style.display = expanded ? 'block' : 'none';
+      toggle.innerHTML = `${expanded ? '▼' : '▶'} ${expanded ? 'Hide' : 'Show'} ${normal.length} normal test${normal.length > 1 ? 's' : ''}`;
+    });
+
+    section.appendChild(toggle);
+    section.appendChild(tableWrap);
+    resultsEl.appendChild(section);
+  }
+
+  // ⑤ Disease predictions
+  const predictions = data.predictions || [];
+  if (predictions.length > 0) {
+    const section = el('div', 'result-section',
+      el('p', 'section-header', `🧠 AI Predictions (${predictions.length})`)
+    );
+    const grid = el('div', 'predictions-grid');
+
+    predictions.forEach((pred, i) => {
+      const pct = Math.round(pred.confidence * 100);
+      const card = document.createElement('div');
+      card.className = `pred-card${pred.urgent ? ' urgent-card' : ''}`;
+      card.innerHTML = `
+        <div class="pred-top">
+          <span class="pred-name">${i === 0 ? '⭐ ' : ''}${esc(pred.disease)}</span>
+          <span class="pred-conf">${pct}%</span>
+        </div>
+        <div class="confidence-bar">
+          <div class="confidence-fill" style="width:0%" data-width="${pct}%"></div>
+        </div>
+        ${pred.contributing_tests.length ? `<div class="pred-tests">${pred.contributing_tests.map(t => `<span class="test-tag">${t.replace('_',' ')}</span>`).join('')}</div>` : ''}
+      `;
+      grid.appendChild(card);
+    });
+
+    section.appendChild(grid);
+    resultsEl.appendChild(section);
+
+    // Animate confidence bars
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.confidence-fill').forEach(el => {
+        setTimeout(() => { el.style.width = el.dataset.width; }, 100);
+      });
+    });
+  }
+
+  // ⑥ Recommendations
+  const rec = data.recommendations || {};
+  const hasRec = rec.doctor || (rec.diet?.length) || (rec.lifestyle?.length);
+  if (hasRec) {
+    const section = el('div', 'result-section',
+      el('p', 'section-header', '💊 Recommendations')
+    );
+    const grid = el('div', 'rec-grid');
+
+    if (rec.doctor) {
+      const allNotes = rec.all_doctor_notes || [rec.doctor];
+      const card = el('div', 'rec-card rec-doctor',
+        el('div', 'rec-icon', '👨‍⚕️'),
+        el('p', 'rec-title', 'Doctor Consultation'),
+        el('ul', 'rec-list',
+          ...allNotes.map(n => el('li', null, n))
+        )
+      );
+      grid.appendChild(card);
+    }
+
+    if (rec.diet?.length) {
+      const card = el('div', 'rec-card',
+        el('div', 'rec-icon', '🥗'),
+        el('p', 'rec-title', 'Diet'),
+        el('ul', 'rec-list',
+          ...rec.diet.map(d => el('li', null, d))
+        )
+      );
+      grid.appendChild(card);
+    }
+
+    if (rec.lifestyle?.length) {
+      const card = el('div', 'rec-card',
+        el('div', 'rec-icon', '🏃'),
+        el('p', 'rec-title', 'Lifestyle'),
+        el('ul', 'rec-list',
+          ...rec.lifestyle.map(l => el('li', null, l))
+        )
+      );
+      grid.appendChild(card);
+    }
+
+    section.appendChild(grid);
+    resultsEl.appendChild(section);
+  }
+
+  // ⑦ Meta footer
+  const meta = el('p', null, `✅ Analyzed ${data.tests_detected || 0} tests in ${data.processing_time_s?.toFixed(1) || '–'}s · Astra R0.0`);
+  meta.style.cssText = 'font-size:.75rem;color:var(--muted);text-align:right;padding-bottom:2rem';
+  resultsEl.appendChild(meta);
+}
+
+function renderError(msg) {
+  resultsEl.innerHTML = '';
+  resultsEl.style.display = 'flex';
+  const card = el('div', 'error-card',
+    el('h4', null, '❌ Analysis Failed'),
+    el('p', null, msg)
+  );
+  resultsEl.appendChild(card);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function el(tag, className, ...children) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  children.forEach(c => {
+    if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+    else if (c) e.appendChild(c);
+  });
+  return e;
+}
+
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]
+  );
+}
+
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+function getStatusClass(status) {
+  if (status === 'normal') return 'status-normal';
+  if (status.includes('critical')) return 'status-critical';
+  if (status === 'low') return 'status-low';
+  return 'status-high';
+}
+
+function statusEmoji(status) {
+  if (status === 'normal') return '✅';
+  if (status.includes('critical')) return '🔴';
+  if (status === 'low') return '⬇️';
+  return '⬆️';
+}
+</script>
+</body>
+</html>

@@ -5,3 +5,7 @@ faiss-cpu
 fastembed
 requests
 pydantic
+pdfplumber
+PyMuPDF
+pytesseract
+Pillow
